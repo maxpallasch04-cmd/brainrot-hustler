@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+.venv/
+venv/
+
+# Secrets & runtime data (never commit)
+modules/data/tiktok_token.json
+modules/data/*.db
+*.token.json
+.env
+.env.*
+
+# Temp / partial downloads
+*.part
+temp/
+
+# Large licensed media (keep out of the repo by default)
+assets/music/*.mp3
+assets/music/*.wav
+assets/music/*.m4a
