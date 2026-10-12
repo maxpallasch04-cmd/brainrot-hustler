@@ -19,7 +19,7 @@ mem.addMetric(vid, views=1200, comments=30, likes=90)
 mem.newestMetric(vid)                         # {'ts':..., 'views':1200, ...}
 ```
 
-`art` ∈ {`Selbstgeneriert`, `Twitch-Clip`, `Geklaut`, `Serien-Clip`}; status ∈
+`art` ∈ {`Selbstgeneriert`, `Twitch-Clip`, `YT-Clip`}; status ∈
 {`Created`, `Uploaded`}; `upload_at` ist bis zum Upload `NULL`. Zeitstempel sind
 Unix-Epoch-Sekunden. `recipe` ist der Rezeptname (`recipes/<name>.md`), aus dem das
 Video gebaut wurde — genutzt für die Analyse pro Rezept.

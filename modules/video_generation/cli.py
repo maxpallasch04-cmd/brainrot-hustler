@@ -3,7 +3,7 @@
 Run from the project root:
     python3 -m video_generation.cli <command> [args]
 
-Commands: probe, cut, background, overlay, audio, concat, render.
+Commands: probe, cut, background, overlay, crop, layout, audio, concat, render.
 """
 
 from __future__ import annotations
@@ -47,6 +47,14 @@ def main(argv: list[str] | None = None) -> int:
     pr = sub.add_parser("probe", help="print duration/size/fps/audio as JSON")
     pr.add_argument("--in", dest="src", required=True)
 
+    fr = sub.add_parser("frames", help="extract PNG frames from a video")
+    fr.add_argument("--in", dest="src", required=True)
+    fr.add_argument("--out-dir", default="frames")
+    fr.add_argument("--at", default=None, help="comma-separated seconds")
+    fr.add_argument("--count", type=int, default=None, help="evenly spaced frames (default 4)")
+    fr.add_argument("--width", type=int, default=None, help="downscale width")
+    fr.add_argument("--prefix", default=None)
+
     c = sub.add_parser("cut", help="trim a clip")
     c.add_argument("--in", dest="src", required=True)
     c.add_argument("--start", type=float, default=0.0)
@@ -70,6 +78,23 @@ def main(argv: list[str] | None = None) -> int:
     o.add_argument("--duration", type=float, default=None)
     o.add_argument("--size", default=None, help="overlay size WxH")
     o.add_argument("--opacity", type=float, default=1.0)
+
+    cr = sub.add_parser("crop", help="cut a rectangular region out of a clip")
+    cr.add_argument("--in", dest="src", required=True)
+    cr.add_argument("--out", required=True)
+    cr.add_argument("--box", required=True, help="x,y,w,h")
+    cr.add_argument("--size", default=None, help="optional target WxH")
+    cr.add_argument("--fit", default="stretch", choices=("stretch", "contain", "cover"))
+
+    ly = sub.add_parser("layout", help="compose regions of one clip onto a canvas")
+    ly.add_argument("--in", dest="src", required=True)
+    ly.add_argument("--out", required=True)
+    ly.add_argument("--regions", required=True,
+                   help="JSON file with regions[], or '-' for stdin")
+    ly.add_argument("--size", default=None)
+    ly.add_argument("--background", default=None, help="colour/image/video")
+    ly.add_argument("--start", type=float, default=None)
+    ly.add_argument("--end", type=float, default=None)
 
     nz = sub.add_parser("noise", help="add film grain / VHS noise")
     nz.add_argument("--in", dest="src", required=True)
@@ -100,6 +125,12 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.cmd == "probe":
         _dump(edit.probe(args.src))
+    elif args.cmd == "frames":
+        times = ([float(x) for x in args.at.replace(" ", "").split(",") if x]
+                 if args.at else None)
+        got = edit.frames(args.src, times, count=args.count, out_dir=args.out_dir,
+                          prefix=args.prefix, width=args.width)
+        _dump({"count": len(got), "frames": got})
     elif args.cmd == "cut":
         src = edit.load(args.src)
         out = _render_and_close(edit.cut(src, args.start, args.end), args.out, [src])
@@ -116,6 +147,31 @@ def main(argv: list[str] | None = None) -> int:
                            args.start, args.duration, size, args.opacity)
         out = _render_and_close(res, args.out, [src])
         _dump({"out": out})
+    elif args.cmd == "crop":
+        src = edit.load(args.src)
+        res = edit.crop(src, edit.parse_box(args.box), size=args.size, fit=args.fit)
+        out = _render_and_close(res, args.out, [src])
+        _dump({"out": out})
+    elif args.cmd == "layout":
+        if args.regions == "-":
+            spec = json.load(sys.stdin)
+        else:
+            spec = json.loads(Path(args.regions).read_text(encoding="utf-8"))
+        if isinstance(spec, dict):
+            regions = spec["regions"]
+            size = args.size or spec.get("size") or edit.DEFAULT_SIZE
+            background = (args.background if args.background is not None
+                          else spec.get("background"))
+        else:
+            regions = spec
+            size = args.size or edit.DEFAULT_SIZE
+            background = args.background
+        src = edit.load(args.src)
+        clip = edit.cut(src, args.start or 0.0, args.end) if (args.start or args.end) else src
+        res = edit.layout(clip, regions, size, background)
+        out = _render_and_close(res, args.out, [src])
+        _dump({"out": out, "regions": len(regions),
+               "size": list(edit.parse_size(size))})
     elif args.cmd == "noise":
         src = edit.load(args.src)
         res = edit.noise(src, args.amount, args.mode, not args.color, args.seed)

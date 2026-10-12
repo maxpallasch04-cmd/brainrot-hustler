@@ -23,8 +23,7 @@ class Status(str, Enum):
 class VideoArt(str, Enum):
     SELBSTGENERIERT = "Selbstgeneriert"
     TWITCH_CLIP = "Twitch-Clip"
-    GEKLAUT = "Geklaut"
-    SERIEN_CLIP = "Serien-Clip"
+    YT_CLIP = "YT-Clip"
 
 
 def _now() -> int:

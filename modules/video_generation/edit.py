@@ -50,6 +50,27 @@ def parse_color(value) -> tuple[int, int, int]:
     return ImageColor.getrgb(str(value))
 
 
+def parse_box(value) -> tuple[int, int, int, int]:
+    """Accept (x, y, w, h), 'x,y,w,h' or {'x','y','w','h'} -> (x, y, w, h).
+
+    Dicts also accept left/top/width/height. Used for crop regions.
+    """
+    if isinstance(value, dict):
+        try:
+            return (int(value.get("x", value.get("left", 0))),
+                    int(value.get("y", value.get("top", 0))),
+                    int(value["w"] if "w" in value else value["width"]),
+                    int(value["h"] if "h" in value else value["height"]))
+        except KeyError as exc:
+            raise ValueError("box dict needs x/y/w/h (or left/top/width/height)") from exc
+    if isinstance(value, (list, tuple)) and len(value) == 4:
+        return tuple(int(float(v)) for v in value)
+    parts = [p for p in str(value).replace(" ", "").split(",") if p]
+    if len(parts) != 4:
+        raise ValueError(f"box must be x,y,w,h — got {value!r}")
+    return tuple(int(float(p)) for p in parts)
+
+
 def _xy(x, y, canvas, obj) -> tuple[float, float]:
     """Resolve an (x, y) top-left position; 'center' is allowed per axis."""
     cw, ch = canvas
@@ -69,6 +90,37 @@ def load(path) -> VideoFileClip:
 def load_audio(path) -> AudioFileClip:
     """Open an audio file as a clip (remember to close it)."""
     return AudioFileClip(str(path))
+
+
+def frames(path, times=None, *, count: int | None = None, out_dir: str = "frames",
+           prefix: str | None = None, width: int | None = None) -> list[dict]:
+    """Extract PNG frames from a video.
+
+    `times`: explicit seconds. Otherwise `count` evenly spaced frames (default 4)
+    — spread across the video, not clustered at the start. `width` optionally
+    downscales (keeps aspect). Returns `[{'t', 'path', 'size'}]`.
+    """
+    clip = VideoFileClip(str(path))
+    try:
+        duration = float(clip.duration or 0.0)
+        if times is None:
+            n = int(count or 4)
+            if n < 1:
+                raise ValueError("count must be >= 1")
+            times = [(i + 0.5) * duration / n for i in range(n)]
+        target = clip.resized(width=int(width)) if width else clip
+        out = Path(out_dir)
+        out.mkdir(parents=True, exist_ok=True)
+        stem = prefix or Path(str(path)).stem
+        got = []
+        for t in times:
+            t = max(0.0, min(float(t), max(0.0, duration - 0.05)))
+            p = out / f"{stem}-{int(round(t * 1000)):09d}.png"
+            target.save_frame(str(p), t=t)
+            got.append({"t": round(t, 3), "path": str(p), "size": list(target.size)})
+        return got
+    finally:
+        clip.close()
 
 
 def probe(path) -> dict:
@@ -172,6 +224,105 @@ def overlay(video, image, x=0, y=0, start: float = 0.0, duration: float | None =
                               size=video.size)
 
 
+# ---- crop / layout ------------------------------------------------------
+
+def crop(clip, box, *, size=None, fit: str = "stretch"):
+    """Cut a rectangular region out of `clip`.
+
+    `box` is (x, y, w, h) — clamped to the frame. `size` optionally rescales the
+    region: 'stretch' (exact target), 'contain' (fit inside, keep aspect) or
+    'cover' (fill, keep aspect, center-crop). Returns a view of `clip`.
+    """
+    x, y, w, h = parse_box(box)
+    cw, ch = clip.size
+    x = max(0, min(int(x), cw - 2))
+    y = max(0, min(int(y), ch - 2))
+    w = max(2, min(int(w), cw - x))
+    h = max(2, min(int(h), ch - y))
+    out = clip.cropped(x1=x, y1=y, x2=x + w, y2=y + h)
+    return out if size is None else _fit(out, size, fit)
+
+
+def _fit(clip, size, fit: str = "contain"):
+    """Rescale a clip to `size`: 'contain' | 'cover' | 'stretch'."""
+    if fit == "cover":
+        return cover(clip, size)
+    if fit == "stretch":
+        tw, th = parse_size(size)
+        return clip.resized(new_size=(_even(tw), _even(th)))
+    if fit != "contain":
+        raise ValueError(f"fit must be contain/cover/stretch — got {fit!r}")
+    return contain(clip, size)
+
+
+def _layer_duration(layer: dict) -> float:
+    dur = layer.get("duration")
+    if dur is not None:
+        return float(layer.get("start", 0.0)) + float(dur)
+    clip = layer.get("clip")
+    return float(getattr(clip, "duration", 0.0) or 0.0)
+
+
+def compose(size=DEFAULT_SIZE, layers=(), *, background=None, duration=None):
+    """Composite layers onto a canvas of `size`.
+
+    Each layer: ``{'clip' (required), 'box'?, 'size'?, 'fit'?, 'position'?,
+    'start'?, 'duration'?, 'opacity'?}``. ``position`` is 'center' or ``[x, y]``.
+    ``duration`` defaults to the longest layer.
+    """
+    w, h = parse_size(size)
+    layers = list(layers)
+    if duration is None:
+        duration = max([_layer_duration(l) for l in layers] or [0.0]) or None
+    if duration is None:
+        raise ValueError("compose needs a duration (or layers with one)")
+    bg = _background(background, (w, h), float(duration))
+    built = []
+    for layer in layers:
+        clip = layer.get("clip")
+        if clip is None:
+            raise ValueError("compose layers need a 'clip'")
+        if layer.get("box") is not None:
+            clip = crop(clip, layer["box"], size=layer.get("size"),
+                        fit=layer.get("fit", "stretch"))
+        elif layer.get("size") is not None:
+            clip = _fit(clip, layer["size"], layer.get("fit", "contain"))
+        start = float(layer.get("start", 0.0))
+        dur = layer.get("duration")
+        if start or dur is not None:
+            clip = clip.with_start(start)
+            if dur is not None:
+                clip = clip.with_duration(float(dur))
+        pos = layer.get("position", "center")
+        if pos == "center":
+            pos = _xy("center", "center", (w, h), clip.size)
+        elif isinstance(pos, (list, tuple)):
+            pos = (float(pos[0]), float(pos[1]))
+        else:
+            raise ValueError(f"position must be 'center' or [x, y] — got {pos!r}")
+        if float(layer.get("opacity", 1.0)) != 1.0:
+            clip = clip.with_opacity(float(layer["opacity"]))
+        built.append(clip.with_position(tuple(pos)))
+    return CompositeVideoClip([bg, *built], size=(w, h))
+
+
+def layout(clip, regions, size=DEFAULT_SIZE, background=None):
+    """Build a canvas from regions of one source clip (see the recipe `regions`).
+
+    `regions`: list of ``{'box': (x, y, w, h), 'size'?, 'fit'?, 'position'?,
+    'start'?, 'duration'?}`` — each region is a crop of the shared source, so a
+    scoreboard and the main action can sit together on a 9:16 canvas.
+    """
+    layers = []
+    for region in regions:
+        layer = dict(region)
+        layer.setdefault("clip", clip)
+        layers.append(layer)
+    if not layers:
+        raise ValueError("layout needs at least one region")
+    return compose(size, layers, background=background, duration=clip.duration)
+
+
 # ---- stylise ------------------------------------------------------------
 
 NOISE_MODES = ("grain", "vhs")
@@ -264,7 +415,8 @@ def render_recipe(recipe: dict) -> dict:
     """Build and render a full video from a plain dict. See README.
 
     Top level: size, fps, background, noise, audio[], clips[], out.
-    Each clip: source, start, end, background, margin, overlays[], noise, audio[].
+    Each clip: source, start, end, background, margin, overlays[], noise, audio[],
+    regions[] (per-clip layout: scoreboard + action on one canvas).
     """
     size = parse_size(recipe.get("size", DEFAULT_SIZE))
     fps = int(recipe.get("fps", DEFAULT_FPS))
@@ -283,8 +435,12 @@ def render_recipe(recipe: dict) -> dict:
             clip = src
             if spec.get("start") is not None or spec.get("end") is not None:
                 clip = cut(clip, spec.get("start", 0), spec.get("end"))
-            clip = on_background(clip, size, spec.get("background", default_bg),
-                                 margin=int(spec.get("margin", 0)))
+            if spec.get("regions"):
+                clip = layout(clip, spec["regions"], size,
+                              spec.get("background", default_bg))
+            else:
+                clip = on_background(clip, size, spec.get("background", default_bg),
+                                     margin=int(spec.get("margin", 0)))
             for ov in spec.get("overlays", []):
                 clip = overlay(clip, ov["image"], ov.get("x", 0), ov.get("y", 0),
                                ov.get("start", 0.0), ov.get("duration"),

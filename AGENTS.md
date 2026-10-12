@@ -7,23 +7,23 @@ Erststart: `BOOTSTRAP.md` (einmalig) — offene Felder sind `_fülle aus_`.
 ## Nische
 - **Beschreibung:** _fülle aus_ (Thema, Zielgruppe, Sprache)
 - **Beispiel vom Nutzer:** _fülle aus_
-- **Bevorzugte Videoart:** _fülle aus_ (Selbstgeneriert / Twitch-Clip / …)
-- **Aktive Rezepte:** _fülle aus_ (`recipes/<name>.md`)
+- **Bevorzugte Videoart:** YT-Clip (Selbstgeneriert / Twitch-Clip / …)
+- **Aktive Rezepte:** `ytsls-besttrick`, `ytsls-bestline` (`recipes/<name>.md`)
 
 ## Rolle
 - Ablauf: planen → produzieren → Upload melden → analysieren.
 - Format: **9:16, min. 720p**.
 
 ## Videoarten
-- **Selbstgenerierter Content** (`selfgen`).
-- **Twitch-Clip** (`cliptwitch`) — bei Twitch zusätzlich: Spiel/Streamer = _fülle aus_.
-- Jede Art baut auf ein Rezept (`recipes/<name>.md`).
+- **Selbstgenerierter Content** (`selfgen`)
+- **YT-Clip** (`ytclip`) 
+- **Twitch-Clip** (`cliptwitch`) 
 
 ## Upload-Takt
 - Der Agent legt Uploads pro Tag und das Zeitfenster selbst fest — anhand von
   Langzeitgedächtnis und Berichten.
-- Immer **≥ N** offene Einträge in `contentplan.md` — N = _fülle aus_ (Vorschlag: 3).
-- **Ruhezeiten:** _fülle aus_ (Vorschlag: 22:00–09:00) — nichts einplanen;
+- Immer **≥ N** offene Einträge in `contentplan.md` — N = _fülle aus_ 
+- **Ruhezeiten:** _fülle aus_  — nichts einplanen;
   über den Tag verteilen.
 
 ## Zuständigkeit

@@ -13,7 +13,7 @@ neues Rezept will — es holt sich, was es braucht.
 ## Templates
 Der Skill ist **generierungs-unabhängig**: die artspezifischen Details stecken in
 `recipes/templates/` — **ein Template pro Art** (`gen_template.md` → `Selbstgeneriert`,
-`twitch_template.md` → `Twitch-Clip`, …). Ausgewählt wird über das `art`-Feld des
+`twitch_template.md` → `Twitch-Clip`, `yt_template.md` → `YT-Clip`, …). Ausgewählt wird über das `art`-Feld des
 Templates. Neue Art = neues Template mit passendem `art` **und** ein Skill für
 diese Art.
 
@@ -31,6 +31,7 @@ diese Art.
    - `Selbstgeneriert`: `lifestory` (wahre Geschichte, Hoffnung), `gencreep`
      (gruselige Stimmung).
    - `Twitch-Clip`: noch kein aktives Beispiel — über das Template aufbauen.
+   - `YT-Clip`: noch kein aktives Beispiel — über das Template aufbauen.
    - Nichts passt → zu Schritt 4.
 3. **Bekanntes Rezept übernehmen** (falls gewählt): kopieren, Frontmatter anpassen
    (`name` = neue Datei-ID) und die Abschnitte an die Nische; dann zu Schritt 5.
@@ -40,11 +41,13 @@ diese Art.
    Ton/Titel/Beschreibung, Do/Don't, Beispiele) aus den Inputs. Fehlendes beim Nutzer
    erfragen. `lifestory.md` / `gencreep.md` als ausgearbeitete Beispiele nutzen.
    Für ein Twitch-Rezept **Spiel oder Streamer** (Kategorie) und das
-   Auswahlfenster/Sort fragen.
+   Auswahlfenster/Sort fragen. Für ein YT-Rezept die **Quellen** und — aus dem
+   Abschnitt `## Format` — **welche Boxen relevant sind** (das Vision-Modell
+   erkennt Boxen, das Modell wählt danach aus).
 5. **Frontmatter setzen + validieren:**
    - `name`: Datei-ID (= Dateiname, lowercase, kein `_`).
    - `art`: muss auf einen Skill zeigen — `Selbstgeneriert` → `selfgen`,
-     `Twitch-Clip` → `cliptwitch` — und ein Template dieser Art unter
+     `Twitch-Clip` → `cliptwitch`, `YT-Clip` → `ytclip` — und ein Template dieser Art unter
      `recipes/templates/` haben. Kein Skill/Template → **stoppen und melden**.
    - `theme`: kurzes Tag fürs Plan-Matching.
    - nur `Selbstgeneriert`: `model` (provider/model-Override, darf leer sein) und

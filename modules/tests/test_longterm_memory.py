@@ -20,10 +20,10 @@ class LongTermMemoryTest(unittest.TestCase):
         self.tmp.cleanup()
 
     def test_add_and_get(self):
-        vid = self.mem.addVideo("hello", VideoArt.GEKLAUT, len_s=12, theme="cats")
+        vid = self.mem.addVideo("hello", VideoArt.TWITCH_CLIP, len_s=12, theme="cats")
         row = self.mem.getVideo(vid)
         self.assertEqual(row["title"], "hello")
-        self.assertEqual(row["art"], "Geklaut")
+        self.assertEqual(row["art"], "Twitch-Clip")
         self.assertEqual(row["status"], Status.CREATED.value)
         self.assertIsNone(row["upload_at"])
         self.assertEqual(row["recipe"], "")
@@ -53,7 +53,7 @@ class LongTermMemoryTest(unittest.TestCase):
         vid = self.mem.addVideo("hello", VideoArt.TWITCH_CLIP, len_s=12,
                                 theme="cats", recipe="twitchkatze")
         self.assertEqual(self.mem.getVideo(vid)["recipe"], "twitchkatze")
-        plain = self.mem.addVideo("x", VideoArt.GEKLAUT, len_s=5)
+        plain = self.mem.addVideo("x", VideoArt.TWITCH_CLIP, len_s=5)
         self.assertEqual(self.mem.getVideo(plain)["recipe"], "")
 
     def test_recipe_migration(self):

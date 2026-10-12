@@ -77,7 +77,7 @@ class AnalysisTest(unittest.TestCase):
 
     def test_match_by_title_and_time(self):
         titled = self._vid("Hello", 1000)
-        blank = self.mem.addVideo("", VideoArt.GEKLAUT, 10)
+        blank = self.mem.addVideo("", VideoArt.TWITCH_CLIP, 10)
         self.mem.upload(blank, at=5000)
 
         matched, unmatched = analysis.match_videos(self.mem, [

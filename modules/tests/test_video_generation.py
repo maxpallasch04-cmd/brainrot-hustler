@@ -164,6 +164,97 @@ class VideoGenerationTest(unittest.TestCase):
             self.assertEqual(check.size, [180, 320])
             self.assertAlmostEqual(check.duration, 1.0, places=1)
 
+    # ---- frames ---
+
+    def test_frames_even_spread(self):
+        src = str(self.tmp / "in.mp4")
+        _write_video(src, size=(160, 120), duration=1.0)
+        got = edit.frames(src, count=3, out_dir=str(self.tmp / "f"))
+        self.assertEqual(len(got), 3)
+        for f in got:
+            self.assertTrue(Path(f["path"]).is_file())
+        self.assertLess(got[0]["t"], got[1]["t"])
+        self.assertLess(got[1]["t"], got[2]["t"])
+
+    def test_frames_explicit_and_width(self):
+        src = str(self.tmp / "in.mp4")
+        _write_video(src, size=(160, 120), duration=1.0)
+        got = edit.frames(src, [0.0, 0.5], out_dir=str(self.tmp / "f2"), width=80)
+        self.assertEqual([f["t"] for f in got], [0.0, 0.5])
+        self.assertEqual(got[0]["size"], [80, 60])
+
+    # ---- crop / layout ---
+
+    def test_parse_box(self):
+        self.assertEqual(edit.parse_box("10,20,30,40"), (10, 20, 30, 40))
+        self.assertEqual(edit.parse_box([10, 20, 30, 40]), (10, 20, 30, 40))
+        self.assertEqual(edit.parse_box({"x": 1, "y": 2, "w": 3, "h": 4}), (1, 2, 3, 4))
+        self.assertEqual(edit.parse_box({"left": 1, "top": 2, "width": 3, "height": 4}),
+                         (1, 2, 3, 4))
+        with self.assertRaises(ValueError):
+            edit.parse_box("1,2,3")
+
+    def test_crop_size_and_clamp(self):
+        src = str(self.tmp / "in.mp4")
+        _write_video(src, size=(160, 90), duration=0.5)
+        clip = edit.load(src)
+        try:
+            self.assertEqual(edit.crop(clip, (10, 10, 50, 40)).size, (50, 40))
+            self.assertEqual(edit.crop(clip, (0, 0, 160, 90), size=(324, 288)).size, (324, 288))
+            # out-of-bounds box is clamped to the frame
+            self.assertEqual(edit.crop(clip, (150, 80, 100, 100)).size, (10, 10))
+        finally:
+            clip.close()
+
+    def test_layout_render(self):
+        src = str(self.tmp / "in.mp4")
+        out = str(self.tmp / "layout.mp4")
+        _write_video(src, size=(160, 90), duration=0.5)
+        clip = edit.load(src)
+        regions = [
+            {"box": [0, 0, 160, 20], "size": [180, 40], "position": [0, 0]},
+            {"box": [0, 20, 160, 70], "size": [180, 280], "position": [0, 40]},
+        ]
+        edit.render(edit.layout(clip, regions, "180x320", "#101010"), out, fps=10)
+        clip.close()
+        with VideoFileClip(out) as check:
+            self.assertEqual(check.size, [180, 320])
+            self.assertAlmostEqual(check.duration, 0.5, places=1)
+
+    def test_compose_centers_layer(self):
+        src = str(self.tmp / "in.mp4")
+        _write_video(src, size=(160, 90), duration=0.4)
+        clip = edit.load(src)
+        try:
+            canvas = edit.compose("200x400", [{"clip": clip, "size": [100, 56]}],
+                                  background="#000000", duration=clip.duration)
+            self.assertEqual(canvas.size, (200, 400))
+        finally:
+            clip.close()
+
+    def test_compose_needs_duration(self):
+        with self.assertRaises(ValueError):
+            edit.compose("100x200", [])
+
+    def test_recipe_with_regions(self):
+        src = str(self.tmp / "in.mp4")
+        out = str(self.tmp / "regions.mp4")
+        _write_video(src, size=(160, 90), duration=0.4)
+        recipe = {
+            "size": "180x320", "fps": 10, "out": out,
+            "clips": [{
+                "source": src, "start": 0.0, "end": 0.4,
+                "regions": [
+                    {"box": [0, 0, 160, 20], "size": [180, 40], "position": [0, 0]},
+                    {"box": [0, 20, 160, 70], "size": [180, 280], "position": [0, 40]},
+                ],
+            }],
+        }
+        result = edit.render_recipe(recipe)
+        self.assertEqual(result["out"], out)
+        with VideoFileClip(out) as check:
+            self.assertEqual(check.size, [180, 320])
+
     def test_probe(self):
         src = str(self.tmp / "in.mp4")
         _write_video(src, size=(160, 90), duration=0.5)
