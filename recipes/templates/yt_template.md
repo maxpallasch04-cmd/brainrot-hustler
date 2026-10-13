@@ -13,7 +13,8 @@ Ein, zwei Sätze: welche Videos, welcher Sport, was für Clips dabei herauskomme
 - Kriterium: was einen clipwürdigen Moment ausmacht (Tor, Foul, Jubel, Fehler …).
 - Länge/Sprache der Quellvideos, Zeitfenster.
 
-## Format- **Relevante Boxen** — das Vision-Modell *erkennt* sie, das normale Modell *wählt*
+## Format
+- **Relevante Boxen** — das Vision-Modell *erkennt* sie, das normale Modell *wählt*
   anhand dieser Liste aus. Pro Box: Name, Inhalt, **required/optional**.
   - `<Name>` · **required** — was drin steht/zu sehen ist (z. B. „Action-Bereich").
   - `<Name>` · **optional** — … (z. B. „Scoreboard, ~30 % der Zeit da").

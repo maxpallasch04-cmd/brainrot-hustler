@@ -28,7 +28,8 @@ Modul-Doku: `monitoring/README.md`, `longterm_memory/README.md`.
 3. **Formatieren** — eine kurze Telegram-Nachricht: Kennzahlen (`N`, `G`,
    `d_global`, bester/schlechtester `d_video`, `blowups`) plus Interpretation und
    einen konkreten Vorschlag.
-4. **Senden** per Telegram an die registrierten Nutzer. Keine Antwort erwartet.
+4. **Senden** per Telegram an die Empfänger (siehe `AGENTS.md` → „Empfänger").
+   Keine Antwort erwartet.
 
 ## Hinweise
 

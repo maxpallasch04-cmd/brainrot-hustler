@@ -12,8 +12,10 @@ Trick, Reaktion und Bewertung in **max. 20 s**.
 ## Auswahl
 - **Quelle: SLS** (<https://www.youtube.com/@SLS>) — nur **volle Wettkämpfe**
   („Full Competition"), keine Einzel-Highlights.
-- **Phase: Best Trick** — der Teil **nach** den Lines. Die Grenze ist eine
-  **Tendenz** (Ansage im Transkript/Text im Bild), **keine harte**.
+- **Phase: Best Trick** — der Teil **nach** den Lines. Erkennung (Tendenz, keine
+  harte Grenze): Ansage „best trick"/„best trick time" im Transkript oder Text im
+  Bild; danach **einzelne** Trick-Versuche mit je eigenem Score (statt kompletter
+  Runs).
 - **Schnitt-Anker: der Score.** Die Bewertung wird angesagt → Transkript-Zahlen
   (`subtitles numbers`); an jeder Vergabe ist der Score auch im Scoreboard sichtbar.
 - **Bewertung < 8 ausschließen.**

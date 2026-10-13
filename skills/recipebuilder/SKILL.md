@@ -28,8 +28,9 @@ diese Art.
 2. **Bekannte Rezepte abgleichen.** Vorhandene `recipes/*.md` prüfen (ihr `art` +
    `theme`) und die Archetypen unten. Die passenden vorschlagen — je Name, eine
    Zeile — und den Nutzer bitten, eines zu wählen oder zu kombinieren.
-   - `Selbstgeneriert`: `lifestory` (wahre Geschichte, Hoffnung), `gencreep`
-     (gruselige Stimmung).
+   - `Selbstgeneriert`: `gencreep` (gruselige Stimmung). Weiterer Archetyp:
+     `lifestory` (wahre Geschichte, Hoffnung) — noch nicht angelegt, über das
+     Template bauen.
    - `Twitch-Clip`: noch kein aktives Beispiel — über das Template aufbauen.
    - `YT-Clip`: noch kein aktives Beispiel — über das Template aufbauen.
    - Nichts passt → zu Schritt 4.
@@ -39,7 +40,7 @@ diese Art.
    `recipes/templates/` kopieren (auswählen über das `art`-Feld des Templates) und
    jeden Abschnitt füllen (Auswahl, Background/Layout, Musik, Schnitt/Overlays,
    Ton/Titel/Beschreibung, Do/Don't, Beispiele) aus den Inputs. Fehlendes beim Nutzer
-   erfragen. `lifestory.md` / `gencreep.md` als ausgearbeitete Beispiele nutzen.
+   erfragen. `gencreep.md` als ausgearbeitetes Beispiel nutzen.
    Für ein Twitch-Rezept **Spiel oder Streamer** (Kategorie) und das
    Auswahlfenster/Sort fragen. Für ein YT-Rezept die **Quellen** und — aus dem
    Abschnitt `## Format` — **welche Boxen relevant sind** (das Vision-Modell

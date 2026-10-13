@@ -12,6 +12,7 @@ modules/data/*.db
 *.token.json
 .env
 .env.*
+!.env.example
 
 # Temp / partial downloads
 *.part

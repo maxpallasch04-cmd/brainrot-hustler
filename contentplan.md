@@ -1,10 +1,10 @@
 # Contentplan
 
 Zentrale Warteschlange der geplanten Uploads. Wird bei jedem Heartbeat geprüft.
-Takt und Ruhezeiten: siehe `AGENTS.md`.
+Takt, Vorlaufzeit und Ruhezeiten: siehe `AGENTS.md`.
 
 ## Einträge
-- Jeder Eintrag nennt genau ein **Rezept** aus `recipes/`.
+- Jeder Eintrag nennt genau ein **Rezept** aus `recipes/` (`rezept`-Feld).
 - Chronologisch nach Uploadzeit, frühester zuerst (oberster = nächster).
 - Lebenslauf: `geplant` → `generiert` (Status setzen + `datei` eintragen)
   → `hochgeladen` (Eintrag entfernen, ins Langzeitgedächtnis).
@@ -13,14 +13,19 @@ Takt und Ruhezeiten: siehe `AGENTS.md`.
 - Kein Archiv: hochgeladene Videos stehen im Langzeitgedächtnis.
 
 ## Format
-Ein Block pro Upload (Beispiel, auskommentiert):
-<!--
+Ein Block pro Upload. Felder:
+- `rezept` — Rezept-ID (`recipes/<name>.md`).
+- `idee` — in einem Satz, was das Video ist.
+- `status` — `geplant` | `generiert`.
+- `datei` — Pfad der gerenderten `.mp4` (leer bis generiert).
+
+```
 ## 2026-10-09 18:00
-- rezept: lifestory
-- idee: <in einem Satz, was das Video ist>
+- rezept: ytsls-besttrick
+- idee: Best-Trick Kickflip Backside Tailslide, Score 9.10
 - status: geplant
 - datei:
-- hochgeladen:
--->
+```
 
 ## Offen
+_Noch keine Einträge._

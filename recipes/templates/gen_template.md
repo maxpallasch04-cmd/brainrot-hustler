@@ -22,9 +22,9 @@ Zeitfenster/Sortierung).
 Standardmäßig Vollbild, wahlweise anpassen.
 
 ## Musik
-Standard: **vom Modell mitgeneriert** (`audio: true`); wahlweise Track aus dem Pool
-(`assets/music/`, rotieren) — dann leise. `music_generate` nur auf Ansage.
-Stil/Tempo, Lautstärke.
+Standard: **Track aus dem Pool** (`assets/music/`, rotieren) — leise untermischen.
+Gibt das Modell Ton (`audio: true`), diesen leise mit dem Track mischen.
+`music_generate` nur auf Ansage. Stil/Tempo, Lautstärke.
 
 ## Schnitt / Overlays
 Schnitt-Tempo, Jumpcuts, Icons (x/y/Zeit), Effekte, Gesamtlänge.

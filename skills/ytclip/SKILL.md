@@ -19,7 +19,6 @@ YT-Spezifische steht hier — die Pipeline ist generisch.
 - Zweistufig: das **Vision-Modell erkennt** die Boxen in 4 Screenshots (nur
   Koordinaten, kein OCR) — das **normale Modell baut daraus zusammen mit dem
   Rezept** das Format: welche Boxen relevant sind, Reihenfolge, 9:16-Mapping.
-- Das Format wird **einmal pro Video** bestimmt und für **alle** seine Clips genutzt.
 - Ein Video kann über mehrere Läufe abgearbeitet werden. Der Zustand liegt in
   `data/brainrot.db` (`yt_source`, `yt_clip`, siehe `yt_clips/README.md`).
 
@@ -64,24 +63,32 @@ YT-Spezifische steht hier — die Pipeline ist generisch.
 
 ### `find` — clipwürdige Stellen finden
 
-   **Automatisch:** Kapitel + Audio-Peaks erkennen —
-   laut = Jubel/Kommentator. Kein Vision-Modell, keine API-Kosten.
-   ```
-   python3 -m yt_clips.cli highlights --source <id> --top 10 --add
-   ```
-   Die Kandidaten (`reason` sagt warum: „Kapitel: …" oder „Lautheit …") einmal
-   überfliegen, unpassende streichen (`status: Skipped`).
-
-   **Zahlen im Transkript (Schnitt-Anker, Hauptweg):** Die Bewertungen werden
-   angesagt, und an jeder Vergabe ist der Score im Scoreboard sichtbar → **Schnitte
-   am Score setzen**. Zahlen im Transkript suchen; **OCR nur zur Kontrolle**
-   (selten, lokal) auf der Score-Box:
+   **Hauptweg — Score-Anker aus dem Transkript:** Die Bewertungen werden angesagt,
+   und an jeder Vergabe ist der Score im Scoreboard sichtbar → **Schnitte am Score
+   setzen**. Zahlen im Transkript suchen; **OCR nur zur Kontrolle** (selten, lokal)
+   auf der Score-Box:
    ```
    python3 -m subtitles.cli numbers --in <transcript.vtt> --min 6 --max 10
    ```
-   Schnitte nur, wo das **Scoreboard sichtbar** ist. Die **Offset-Tendenz**
-   (früher/später relativ zum Score), die **Score-Schwelle** und die **Phase**
-   stehen im Rezept (`## Clips`,`## Format`) — nicht hier.
+   Treffer als Kandidaten eintragen, unpassende streichen (`status: Skipped`):
+   ```
+   python3 -m yt_clips.cli candidates-add --source <id> --json cands.json
+   ```
+   Schnitte nur, wo das **Scoreboard sichtbar** ist.
+
+   **Zusatzsignal (optional, kostenlos): Kapitel + Audio-Peaks** — laut = Jubel/
+   Kommentator. Als günstige Vorauswahl ergänzend zum Score nutzen; kein
+   Vision-Modell, keine API-Kosten:
+   ```
+   python3 -m yt_clips.cli highlights --source <id> --top 10 --add
+   ```
+   Die Kandidaten (`reason` sagt warum: „Kapitel: …" / „Lautheit …") überfliegen,
+   unpassende streichen (`status: Skipped`).
+
+   **Phase — Lines oder Best Trick:** *wie* ein Clip erkannt wird (welche Phase,
+   Score-Schwelle, Länge, Offset-Tendenz) steht im Rezept (`## Auswahl`,
+   `## Clips`) — nicht hier. Aktive YT-Rezepte: `recipes/ytsls-bestline.md`
+   (Lines) und `recipes/ytsls-besttrick.md` (Best Trick).
 
 ### `clip` — einen Kandidaten rendern
 

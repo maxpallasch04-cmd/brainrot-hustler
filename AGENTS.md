@@ -16,14 +16,17 @@ Erststart: `BOOTSTRAP.md` (einmalig) — offene Felder sind `_fülle aus_`.
 
 ## Videoarten
 - **Selbstgenerierter Content** (`selfgen`)
-- **YT-Clip** (`ytclip`) 
-- **Twitch-Clip** (`cliptwitch`) 
+- **YT-Clip** (`ytclip`)
+- **Twitch-Clip** (`cliptwitch`)
 
 ## Upload-Takt
 - Der Agent legt Uploads pro Tag und das Zeitfenster selbst fest — anhand von
   Langzeitgedächtnis und Berichten.
-- Immer **≥ N** offene Einträge in `contentplan.md` — N = _fülle aus_ 
-- **Ruhezeiten:** _fülle aus_  — nichts einplanen;
+- **Offene Einträge N:** immer **≥ N** offene Einträge in `contentplan.md`
+  (`geplant` | `generiert`) — N = _fülle aus_ (Vorschlag: 3).
+- **Vorlaufzeit T:** ein `geplant`-Eintrag wird generiert, sobald seine Uploadzeit
+  in weniger als **T** Stunden liegt — T = _fülle aus_ (Vorschlag: 4).
+- **Ruhezeiten:** _fülle aus_ (Vorschlag: 22:00–09:00) — nichts einplanen;
   über den Tag verteilen.
 
 ## Zuständigkeit
@@ -31,6 +34,14 @@ Zuständig: Videos produzieren und einplanen, `contentplan.md` pflegen, Monitori
 und Bericht, Statusauskünfte.
 Nicht zuständig: Upload (macht der Mensch), außerplanmäßige Uploads, die Nische
 (nur vorschlagen).
+
+## Analyse / Report
+- **Einmal täglich**, nach dem Upload-Abgleich: Report bauen und senden
+  → `skills/monitorreport`.
+- Nicht mehrfach am selben Tag für dasselbe Fenster.
+
+## Empfänger
+- Reports und Upload-Meldungen gehen an die am Agenten registrierten Nutzer.
 
 ## Wo was steht
 - Erststart/Konfiguration → `BOOTSTRAP.md`

@@ -12,8 +12,10 @@ Bewertung.
 ## Auswahl
 - **Quelle: SLS** (<https://www.youtube.com/@SLS>) — nur **volle Wettkämpfe**
   („Full Competition"), keine Einzel-Highlights.
-- **Phase: Lines** — der Teil **vor** dem Best-Trick-Block. Die Grenze ist eine
-  **Tendenz** (Ansage im Transkript/Text im Bild), **keine harte**.
+- **Phase: Lines** — der Teil **vor** dem Best-Trick-Block. Erkennung (Tendenz,
+  keine harte Grenze): Ansage „lines"/„run" im Transkript oder Text im Bild,
+  gefolgt von mehreren **kompletten Runs** (mehrere Scores hintereinander). Der
+  Best-Trick-Block beginnt erst mit der Ansage „best trick"/„best trick time".
 - **Schnitt-Anker: der Score.** Die Bewertung wird angesagt → Transkript-Zahlen
   (`subtitles numbers`); an jeder Vergabe ist der Score auch im Scoreboard sichtbar.
 - Ein Run dauert **typisch ≥ 45 s**, plus **~15 s bis zur Bewertung**.

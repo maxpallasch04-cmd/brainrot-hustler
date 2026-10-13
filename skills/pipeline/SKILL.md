@@ -54,5 +54,4 @@ ist bereits präzise (Idee + Rezept) — hier wird nur ausgeführt, keine Idee e
 
 - **Ein Plan-Eintrag = ein Video.** Kein Lauf erzeugt mehrere Uploads auf einmal —
   sonst überschreiben sich die gehosteten Links (`R2_KEEP=1`).
-- Der Plan-Eintrag bleibt; er wird nur in-place bearbeitet (generiert + Pfad).
 - Der eigentliche Upload wird von der Upload-Erinnerung erledigt, nicht hier.

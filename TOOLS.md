@@ -1,7 +1,7 @@
 # TOOLS.md — lokale Konventionen (BrainrotHustler)
 
 ## Konventionen (gelten für alle Module)
-- Jeden `python3 -m …`-Befehl aus `modules/` ausführen (oder `modules/` auf `PYTHONPATH`).
+- Jeden `python3 -m …`-Befehl aus `modules/` ausführen.
 - Jedes CLI gibt **JSON** aus — parsen.
 - Ergebnis eines Generierungsskills = fertig gerenderte `.mp4`.
 - Vor dem Ausliefern prüfen: `probe` → 9:16, Höhe ≥ 1280 (sonst Rezept fixen, neu rendern).
@@ -9,12 +9,15 @@
 - Details je Modul im jeweiligen `README.md`.
 
 ## Pfade
-- Contentplan: `contentplan.md`
+**Zwei Wurzeln:** Repo-Dateien (`contentplan.md`, `recipes/`, `skills/`) liegen im
+**Repo-Root**. Alles, was Module zur Laufzeit erzeugen (`data/`, `clips/`,
+`frames/`), liegt relativ zum **Arbeitsverzeichnis `modules/`** → `modules/data/…`.
+- Contentplan: `contentplan.md` (Repo-Root)
 - Rezepte: `recipes/<name>.md` (Vorlagen `recipes/templates/<art>_template.md`)
 - Skills: `skills/<name>/SKILL.md`
-- DB (Langzeitgedächtnis): `data/brainrot.db` (override `BRAINROT_DB`)
-- Downloads: `clips/<clip-id>.mp4`
-- Frames (Vision): `frames/` (aus `video_generation.cli frames`)
+- DB (Langzeitgedächtnis): `modules/data/brainrot.db` (override `BRAINROT_DB`)
+- Downloads: `modules/clips/<clip-id>.mp4`
+- Frames (Vision): `modules/frames/` (aus `video_generation.cli frames`)
 - Untertitel: `.vtt` (Transcript aus dem Download) / `.srt` (Clip-Fenster)
 
 ## Module (exakte Befehle, aus `modules/`)
@@ -40,11 +43,13 @@ python3 -m video_generation.cli layout --in match.mp4 --out clip.mp4 \
 (weitere: `background`, `overlay`, `crop`, `layout`, `noise`, `audio`, `concat`)
 
 **yt_clips** — YT-Clip-Art: Quelle/Format/Clip-State (4 Screenshots → Vision → Format)
+Vision-Modell = OpenClaw `agents.defaults.imageModel`.
 ```
 python3 -m yt_clips.cli next                                      # format | clip | find | download
 python3 -m yt_clips.cli download --url <url> --out-dir clips --recipe <name>
 python3 -m yt_clips.cli format-set --source 3 --regions fmt.json
 python3 -m yt_clips.cli candidates-add --source 3 --json cands.json
+python3 -m yt_clips.cli highlights --source 3 --top 10 --add    # optional: Kapitel+Audio-Peaks
 python3 -m yt_clips.cli clip --clip 5 --out out.mp4 --size 1080x1920 --used
 python3 -m yt_clips.cli list
 ```
@@ -69,7 +74,7 @@ python3 -m hosting.cli download --url <link> --out clips/x.mp4   # Direktlink �
 **longterm_memory** — Videos + Metriken
 ```
 python3 -m longterm_memory.cli add-video --title "t" --art "Selbstgeneriert" --len-s 30 \
-    --theme "story" --recipe "lifestory"
+    --theme "horror" --recipe "gencreep"
 python3 -m longterm_memory.cli get-video 1
 python3 -m longterm_memory.cli list-videos [--status Created|Uploaded]
 python3 -m longterm_memory.cli upload 1 [--at <unix_ts>]
@@ -105,12 +110,11 @@ Wake bei Fertig). **Nicht der Standard.**
 - `TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET`, `TIKTOK_REDIRECT_URI`,
   `TIKTOK_ACCESS_TOKEN`, `TIKTOK_TOKEN_FILE` — monitoring
 - `BRAINROT_DB` — DB-Pfad
-- **Hosting (Cloudflare R2)** — in `.env` im Repo-Root (gitignored), geladen
-  automatisch von `hosting`:
+- **Hosting (Cloudflare R2)** — aus `.env` (wird von `hosting` automatisch geladen):
   - `R2_ACCOUNT_ID` — Cloudflare Account-ID
   - `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` — R2-API-Token (Object Read & Write)
   - `R2_BUCKET` — Bucket-Name
   - `R2_PUBLIC_BASE_URL` — `https://pub-xxxx.r2.dev` oder eigene Domain
   - optional: `R2_ENDPOINT`, `R2_PREFIX` (Default `videos/`), `R2_KEEP` (Default 1,
     behält nur das neueste Video), `R2_QUOTA_GB` (Default 10, Speicher-Obergrenze)
-  - braucht `boto3`: `pip install -r modules/requirements.txt`
+  - braucht `boto3`.
