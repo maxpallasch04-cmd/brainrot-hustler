@@ -1,0 +1,34 @@
+{
+  "size": [
+    1080,
+    1920
+  ],
+  "fps": 30,
+  "background": "#000000",
+  "noise": {
+    "amount": 0.08,
+    "mode": "vhs"
+  },
+  "out": "/home/ubuntu/brainrot/out/gencreep-dashcam-2026-10-10.mp4",
+  "clips": [
+    {
+      "source": "/home/ubuntu/brainrot/out/raw-dashcam.mp4",
+      "background": "#000000",
+      "margin": 0,
+      "overlays": [
+        {
+          "image": "/home/ubuntu/brainrot/assets/icons/youdontdaretofollow.png",
+          "x": "center",
+          "y": 1600,
+          "start": 0,
+          "duration": 2,
+          "size": [
+            400,
+            150
+          ],
+          "opacity": 1
+        }
+      ]
+    }
+  ]
+}
