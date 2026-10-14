@@ -7,7 +7,7 @@ Give it a file, get a link — always your Cloudflare R2 bucket.
     python3 -m hosting.cli usage
     python3 -m hosting.cli prune
 
-Config comes from ``.env`` / the environment (see ``TOOLS.md``). Uploads prune
+Config comes from the environment (OpenClaw store/env, see ``TOOLS.md``). Uploads prune
 old objects afterwards: only the newest ``R2_KEEP`` survive (default 1), and the
 total stays under ``R2_QUOTA_GB``.
 """
@@ -21,7 +21,6 @@ from pathlib import Path
 
 from . import r2
 from .download import download
-from .env import load_dotenv
 
 
 def _dump(obj) -> None:
@@ -53,7 +52,6 @@ def main(argv: list[str] | None = None) -> int:
     d.add_argument("--max-mb", type=int, default=None, help="size cap in MB")
 
     args = p.parse_args(argv)
-    load_dotenv()
 
     if args.cmd == "upload":
         cfg = r2.config()

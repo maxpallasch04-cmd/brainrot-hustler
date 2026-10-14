@@ -57,14 +57,11 @@ class _FakeClient:
 
 class _Base(unittest.TestCase):
     def setUp(self):
-        self._load = mock.patch.object(r2, "load_dotenv", lambda *a, **k: {})
-        self._load.start()
         self._saved = {k: os.environ.get(k) for k in MANAGED}
         for k in MANAGED:
             os.environ.pop(k, None)
 
     def tearDown(self):
-        self._load.stop()
         for k, v in self._saved.items():
             if v is None:
                 os.environ.pop(k, None)

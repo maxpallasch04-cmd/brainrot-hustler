@@ -1,7 +1,6 @@
 # twitch_clips
 
-Virale Twitch-Clips für eine Kategorie finden und herunterladen. Zugangsdaten:
-siehe `../README.md`.
+Virale Twitch-Clips für eine Kategorie finden und herunterladen.
 
 Einschränkungen, die die Abfrage beeinflussen:
 

@@ -5,7 +5,8 @@ bekomme eine Datei.
 
 Uploads gehen in den eigenen **Cloudflare-R2-Bucket** (S3-kompatibel): läuft von
 Rechenzentrums-IPs, kommerziell erlaubt, 10 GB/Monat gratis, Egress frei.
-Zugänge über `.env` (siehe `TOOLS.md`). Kein anonymer Host, kein Fallback.
+Zugänge aus dem **OpenClaw-Team-Store** (Kind `env`, siehe `TOOLS.md`). Kein
+anonymer Host, kein Fallback.
 
 Nach jedem Upload wird **aufgeräumt**: nur die neuesten `R2_KEEP` Objekte bleiben
 (Default 1), die Gesamtgröße bleibt unter `R2_QUOTA_GB` (Default 10). Löschen ist
@@ -29,7 +30,11 @@ Upload ok — nur das Aufräumen scheiterte.
 Usage-Ausgabe-JSON: `objects`, `bytes`, `quota_bytes`, `free_bytes`, `keys`.
 Download-Ausgabe-JSON: `path`, `bytes`, `filename`, `url`, `content_type`.
 
-## Konfiguration (`.env`)
+## Konfiguration (OpenClaw-Team-Store)
+
+Die Werte liegen im OpenClaw-Team-Store (Kind `env`) und werden automatisch als
+Umgebungsvariablen injiziert; `hosting` liest sie aus `os.environ`. Kein `.env`,
+kein Fallback-Loader.
 
 Pflicht: `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`,
 `R2_PUBLIC_BASE_URL` (r2.dev-Subdomain oder eigene Domain).

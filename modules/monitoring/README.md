@@ -1,11 +1,13 @@
 # monitoring
 
 Die eigenen TikTok-Metriken des Kanals abrufen und den täglichen Content-Report
-bauen. Zugangsdaten + OAuth-Setup: siehe `../README.md`.
+bauen.
 
 ## Auth (nur einmal nötig)
 
-Der Token liegt auf der Platte und **erneuert sich automatisch**
+Der Token liegt **außerhalb des Workspace**
+(`~/.openclaw/state/brainrot/tiktok_token.json`, per `BRAINROT_STATE_DIR` /
+`TIKTOK_TOKEN_FILE` überschreibbar) und **erneuert sich automatisch**
 (`access_token()` erneuert ihn vor Ablauf), normale Befehle funktionieren also
 einfach.
 

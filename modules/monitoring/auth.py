@@ -10,8 +10,9 @@ App credentials come from the environment (set by the operator, not the agent):
     TIKTOK_CLIENT_KEY
     TIKTOK_CLIENT_SECRET
 
-Mutable tokens live in a file (default: ``data/tiktok_token.json``), overridable
-via ``TIKTOK_TOKEN_FILE``. All timestamps are Unix seconds.
+Mutable tokens live in a file **outside the workspace** (default:
+``~/.openclaw/state/brainrot/tiktok_token.json``), overridable via
+``TIKTOK_TOKEN_FILE`` or ``BRAINROT_STATE_DIR``. All timestamps are Unix seconds.
 
 Flow:
     auth = TikTokAuth()
@@ -41,7 +42,15 @@ REVOKE = "https://open.tiktokapis.com/v2/oauth/revoke/"
 
 DEFAULT_SCOPE = "user.info.basic,user.info.stats,video.list"
 DEFAULT_REDIRECT = "http://localhost:8080/callback"
-DEFAULT_TOKEN_FILE = Path(__file__).resolve().parent.parent / "data" / "tiktok_token.json"
+
+# Rotating OAuth tokens are runtime state, not config: keep them **outside** the
+# workspace (never deployed, never committed). Default lands in OpenClaw's state
+# dir; override with BRAINROT_STATE_DIR or TIKTOK_TOKEN_FILE.
+DEFAULT_STATE_DIR = Path(
+    os.environ.get("BRAINROT_STATE_DIR")
+    or Path.home() / ".openclaw" / "state" / "brainrot"
+)
+DEFAULT_TOKEN_FILE = DEFAULT_STATE_DIR / "tiktok_token.json"
 
 # Refresh a little before the access token actually expires.
 REFRESH_MARGIN = 300  # seconds

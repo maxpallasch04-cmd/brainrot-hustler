@@ -109,8 +109,17 @@ Wake bei Fertig). **Nicht der Standard.**
 - `TWITCH_CLIENT_ID`, `TWITCH_CLIENT_SECRET` — twitch_clips
 - `TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET`, `TIKTOK_REDIRECT_URI`,
   `TIKTOK_ACCESS_TOKEN`, `TIKTOK_TOKEN_FILE` — monitoring
+  - Statische App-Creds kommen aus dem OpenClaw-Env (bzw. Team-Store).
+  - Der **TikTok-Token** (access/refresh, **rotierend**) ist State, kein Config-Wert:
+    liegt als Datei unter `~/.openclaw/state/brainrot/tiktok_token.json` —
+    **nicht** im Repo/Workspace. `refresh` schreibt dort weiter.
 - `BRAINROT_DB` — DB-Pfad
-- **Hosting (Cloudflare R2)** — aus `.env` (wird von `hosting` automatisch geladen):
+- **Hosting (Cloudflare R2)** — liegt im **OpenClaw-Team-Store** (Kind `env`), nicht
+  mehr in einer `.env`. Das Gateway injiziert die Werte automatisch als
+  Umgebungsvariablen in den exec-Kontext → `hosting` liest `os.environ`. Kein `.env`,
+  kein Fallback. Setzen/Erneuern (pro Host, einmalig):
+  `openclaw secrets store set R2_ACCOUNT_ID --kind env` (usw.) → `openclaw secrets reload`.
+  Werte:
   - `R2_ACCOUNT_ID` — Cloudflare Account-ID
   - `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` — R2-API-Token (Object Read & Write)
   - `R2_BUCKET` — Bucket-Name

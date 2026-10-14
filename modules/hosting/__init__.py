@@ -1,8 +1,8 @@
 """BrainrotHustler file hosting.
 
 - **upload** → your own Cloudflare R2 bucket (S3-compatible). Works from
-  datacenter IPs and allows commercial use. Configure via ``.env`` (see
-  ``TOOLS.md``). Uploads are pruned afterwards — see ``r2.prune``.
+  datacenter IPs and allows commercial use. Configure via the environment /
+  OpenClaw store (see ``TOOLS.md``). Uploads are pruned afterwards — see ``r2.prune``.
 - **download** → save any http(s) URL to a local file.
 """
 

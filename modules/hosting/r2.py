@@ -3,7 +3,7 @@
 Give it a file, get a public URL back — backed by your own bucket. Works from
 datacenter IPs (no VPS/VPN block) and has no commercial-use restriction.
 
-Configuration comes from the environment (see ``.env`` / ``TOOLS.md``):
+Configuration comes from the environment (see ``TOOLS.md``):
 
     R2_ACCOUNT_ID          Cloudflare account id (32 hex chars)
     R2_ACCESS_KEY_ID       R2 API token access key id
@@ -30,8 +30,6 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .env import load_dotenv
-
 DEFAULT_PREFIX = "videos/"
 DEFAULT_KEEP = 1
 DEFAULT_QUOTA_GB = 10.0
@@ -48,7 +46,6 @@ class R2Error(RuntimeError):
 
 
 def _env(name: str, default: str | None = None) -> str | None:
-    load_dotenv()
     value = os.environ.get(name, default)
     return value.strip() if isinstance(value, str) else value
 
@@ -68,7 +65,7 @@ def config() -> dict:
     missing = [name for name in REQUIRED if not _env(name)]
     if missing:
         raise R2Error("missing R2 config: " + ", ".join(missing)
-                      + " — fill in .env (see TOOLS.md)")
+                      + " — set the R2_* env vars (OpenClaw store/env, see TOOLS.md)")
     account = _env("R2_ACCOUNT_ID")
     prefix = (_env("R2_PREFIX") or DEFAULT_PREFIX).strip("/")
     return {
