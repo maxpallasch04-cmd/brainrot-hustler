@@ -7,8 +7,8 @@ __pycache__/
 venv/
 
 # Secrets & runtime data (never commit)
-modules/data/tiktok_token.json
-modules/data/*.db
+agent/modules/data/tiktok_token.json
+agent/modules/data/*.db
 *.token.json
 .env
 .env.*
@@ -18,6 +18,6 @@ modules/data/*.db
 temp/
 
 # Large licensed media (keep out of the repo by default)
-assets/music/*.mp3
-assets/music/*.wav
-assets/music/*.m4a
+agent/assets/music/*.mp3
+agent/assets/music/*.wav
+agent/assets/music/*.m4a

@@ -1,0 +1,38 @@
+{
+  "agents": {
+    "entries": {
+      "brainrothustler": {
+        "name": "brainrothustler",
+        "workspace": "~/.openclaw/workspace-brainrothustler",
+        "identity": {
+          "name": "brainrothustler"
+        },
+        "tools": {
+          "allow": [
+            "read",
+            "write",
+            "edit",
+            "apply_patch",
+            "exec",
+            "process",
+            "video_generate",
+            "view_image",
+            "message",
+            "web_search",
+            "web_fetch",
+            "cron",
+            "group:memory"
+          ],
+          "exec": {
+            "mode": "ask",
+            "strictInlineEval": true,
+            "timeoutSeconds": 7200
+          }
+        },
+        "heartbeat": {
+          "every": "60m"
+        }
+      }
+    }
+  }
+}
