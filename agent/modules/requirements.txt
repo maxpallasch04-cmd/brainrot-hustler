@@ -1,0 +1,16 @@
+# BrainrotHustler – Module-Abhängigkeiten (Python 3.11+)
+# Kein venv im Repo: gegen den Host-Python installieren, siehe README §4.
+#
+# Braucht nur: hosting, twitch_clips, yt_clips, video_generation, subtitles.
+# longterm_memory und monitoring kommen mit der stdlib aus.
+
+requests>=2.31           # hosting (Download/HTTP)
+boto3>=1.34              # hosting (Cloudflare R2, S3-kompatibel)
+yt-dlp>=2025.1.1         # twitch_clips, yt_clips (Video-Download)
+moviepy>=2.0,<3          # video_generation, yt_clips (Schnitt)
+numpy>=1.26              # video_generation, yt_clips, subtitles
+Pillow>=10               # video_generation, yt_clips (Crops/Thumbnails)
+imageio-ffmpeg>=0.4.9    # subtitles (liefert das ffmpeg-Binary mit)
+
+# Optional, nur für die Tests (laufen sonst mit stdlib unittest):
+# pytest>=8

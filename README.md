@@ -34,7 +34,7 @@ cp -a agent/. .
 rm -rf agent
 ```
 
-> `setup/` erst **nach** dem Config-Patch entfernen — Reihenfolge in §4.
+> `setup/` erst **nach** dem Config-Patch entfernen — Reihenfolge in §5.
 
 Ergebnis (Endzustand):
 
@@ -51,7 +51,8 @@ Ergebnis (Endzustand):
 ├── assets/
 ├── modules/
 ├── recipes/
-└── skills/
+├── skills/
+└── .venv/          ← nur VPS: venv (nicht committen / nicht überschreiben)
 ```
 
 > `agents.entries.brainrothustler.workspace` muss auf genau diesen Pfad zeigen
@@ -63,9 +64,9 @@ Ergebnis (Endzustand):
 > gefährlich für Laufzeit- und Token-Daten. Die Workspace-Dateien sind ein
 > **Deploy-Snapshot**, kein Repo.
 
-> **Laufzeit-Daten beim Update stehen lassen:** `MEMORY.md`, `memory/` und
-> `modules/data/` (Token, SQLite-DBs) sind lokal und **nicht** Teil des Deploys —
-> beim Update nicht überschreiben.
+> **Laufzeit-Daten beim Update stehen lassen:** `MEMORY.md`, `memory/`,
+> `modules/data/` (Token, SQLite-DBs) und `.venv/` (VPS) sind lokal und **nicht**
+> Teil des Deploys — beim Update nicht überschreiben.
 
 ---
 
@@ -81,7 +82,56 @@ Umgebungsvariablen injiziert → `modules/hosting` liest `os.environ`.
 
 ---
 
-## 4. Setup (Linux)
+## 4. Python-Umgebung & Abhängigkeiten
+
+Die Module sind reines Python (kein Paket, keine Installation nötig — sie laufen
+aus dem Workspace).
+
+**VPS: eigener venv.** Er liegt im Workspace-Root als `.venv/`
+(`~/.openclaw/workspace-brainrothustler/.venv`) — **nicht** committen und beim
+Update nicht überschreiben (wie `modules/data/`).
+
+**Windows/MaxLaptop (verifiziert): kein venv** — die Module laufen gegen den
+Host-Python (3.14, `C:\Program Files\Python314`), Pakete im User-sitepackages
+`%APPDATA%\Python\Python314`.
+
+Fremdpakete (alles andere ist stdlib):
+
+| Modul | Braucht |
+|---|---|
+| `hosting` | `boto3`, `requests` |
+| `twitch_clips` | `yt-dlp` |
+| `yt_clips` | `yt-dlp`, `moviepy`, `numpy`, `Pillow` |
+| `video_generation` | `moviepy`, `numpy`, `Pillow` |
+| `subtitles` | `imageio-ffmpeg` (bringt das ffmpeg-Binary mit) |
+| `longterm_memory`, `monitoring` | — (nur stdlib) |
+
+VPS einrichten (genau einmal, aus dem Workspace-Root):
+
+```bash
+python3 -m venv .venv
+.venv/bin/pip install --upgrade pip
+.venv/bin/pip install -r modules/requirements.txt
+```
+
+Die Module laufen mit dem **venv-Interpreter** — aus `modules/` heraus:
+
+```bash
+cd modules
+../.venv/bin/python3 -m hosting.cli usage
+```
+
+> `exec` ist **nicht interaktiv**: `source .venv/bin/activate` wirkt dort nicht.
+> Darum immer den Interpreter-Pfad aufrufen und **denselben Pfad in die
+> exec-Allowlist** aufnehmen (`setup/exec-approvals.json`), sonst läuft der
+> Eintrag `python3` ins Leere.
+
+Windows (kein venv): `python -m pytest modules/tests` bzw. `python -m hosting.cli …`.
+`ffmpeg` liefert `imageio-ffmpeg` selbst; ein System-`ffmpeg` ist optional.
+
+---
+
+## 5. Setup (Linux)
 
 ```bash
 # 1) Repo ins OpenClaw-Verzeichnis klonen (siehe Verzeichniswechsel)
@@ -92,7 +142,12 @@ cd ~/.openclaw/workspace-brainrothustler
 cp -a agent/. .
 rm -rf agent
 
-# 3) Berechtigungen schreiben (setup/ liegt noch im Verzeichnis)
+# 3) venv anlegen + Modul-Abhängigkeiten (VPS)
+python3 -m venv .venv
+.venv/bin/pip install --upgrade pip
+.venv/bin/pip install -r modules/requirements.txt
+
+# 4) Berechtigungen schreiben (setup/ liegt noch im Verzeichnis)
 openclaw config patch --file setup/agent-config.json
 
 #    ACHTUNG: `approvals set` ERSETZT das gesamte Dokument (host-weit, alle
@@ -105,12 +160,14 @@ openclaw approvals set --gateway --file /tmp/approvals.merged.json
 #    (ohne jq: /tmp/approvals.current.json editieren und den Block
 #     agents.brainrothustler aus setup/exec-approvals.json von Hand einsetzen)
 
-# 4) Prüfen und anwenden
+# 5) Prüfen und anwenden
 openclaw config get agents.entries.brainrothustler.tools
 openclaw exec-policy show --agent brainrothustler
 openclaw approvals get --gateway
+#    Allowlist muss den venv-Interpreter enthalten (~/.openclaw/workspace-brainrothustler/.venv/bin/python3)
 
-# 5) Aufräumen: Repo-Rest weg, Workspace = nur die Agent-Dateien
+# 6) Aufräumen: Repo-Rest weg, Workspace = nur die Agent-Dateien
+#    (.venv/ bleibt stehen!)
 rm -rf setup .git
 
 openclaw gateway restart
@@ -121,13 +178,15 @@ Heartbeat: stündlich 09:00–22:00 (`lightContext`, isolierte Session).
 
 ---
 
-## 5. Status
+## 6. Status
 
 - Agent-Workspace-Struktur: steht (`agent/`).
 - `setup/agent-config.json`: steht (Agent, Tools, `exec.mode: ask`, Heartbeat).
 - `setup/exec-approvals.json`: steht als **Entwurf** — Allowlist über die
-  Modul-CLIs (`python3 -m <modul>.cli …`); **partieller Patch** (nur
-  `agents.brainrothustler`), vor dem Einspielen mergen — Details in `setup/README.md`.
+  Modul-CLIs, je Eintrag `argPattern`; enthält den venv-Interpreter
+  (`.venv/bin/python3`) **und** bare `python3` (Windows/ohne venv). **Partieller
+  Patch** (nur `agents.brainrothustler`), vor dem Einspielen mergen — Details in
+  `setup/README.md`.
 - `agent/BOOTSTRAP.md` ist noch im Repo → ein Deploy startet das Onboarding
   erneut; vor dem ersten Deploy löschen oder bewusst behalten.
 
