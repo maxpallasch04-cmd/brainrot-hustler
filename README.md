@@ -111,6 +111,7 @@ RCE (GHSA-qpv9-8xfj-xx9m); seit 2.0.0 bindet er nur noch auf localhost.
 rm -rf ~/bgutil-ytdlp-pot-provider   # falls ein abgebrochener Clone-Rest liegt
 git clone --single-branch --branch 2.0.2 https://github.com/Brainicism/bgutil-ytdlp-pot-provider.git ~/bgutil-ytdlp-pot-provider
 cd ~/bgutil-ytdlp-pot-provider/server && npm ci && npx tsc
+ls -l ~/bgutil-ytdlp-pot-provider/server/build/main.js   # muss existieren — sonst ist der Build nicht durchgelaufen
 ```
 
 Dauerbetrieb als **systemd-User-Service**. Der `ExecStart`-Pfad wird aus
