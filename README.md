@@ -106,8 +106,10 @@ RCE (GHSA-qpv9-8xfj-xx9m); seit 2.0.0 bindet er nur noch auf localhost.
 ~/.openclaw/workspace-brainrothustler/.venv/bin/pip install -U bgutil-ytdlp-pot-provider
 
 # 2) Provider bauen (Version = Plugin-Version)
-git clone --single-branch --branch 2.0.2 \
-    https://github.com/Brainicism/bgutil-ytdlp-pot-provider.git ~/bgutil-ytdlp-pot-provider
+# Einzeilig halten — ein '\'-Umbruch wird beim Einfügen zu einem Leerzeichen
+# vor der URL ("protocol ' https' is not supported").
+rm -rf ~/bgutil-ytdlp-pot-provider   # falls ein abgebrochener Clone-Rest liegt
+git clone --single-branch --branch 2.0.2 https://github.com/Brainicism/bgutil-ytdlp-pot-provider.git ~/bgutil-ytdlp-pot-provider
 cd ~/bgutil-ytdlp-pot-provider/server && npm ci && npx tsc
 ```
 
