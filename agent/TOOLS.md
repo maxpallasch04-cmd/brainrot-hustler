@@ -111,9 +111,17 @@ Optional/Extra: OpenClaw-Tool `music_generate` (Google/Lyria, gleicher Key) —
 Parameter `prompt`, `instrumental: true`, `durationSeconds`. Asynchron (Task-ID,
 Wake bei Fertig). **Nicht der Standard.**
 
-## Env (Secrets, nie in Dateien)
+## Env & Zugänge (nie ins Repo/Workspace)
 
 - `TWITCH_CLIENT_ID`, `TWITCH_CLIENT_SECRET` — twitch_clips
+- **YouTube-Cookies** (`yt_clips`) — YouTube blockt Rechenzentrums-IPs
+  („Sign in to confirm you're not a bot"). Ohne Cookies scheitert der Download.
+  - `YTDLP_COOKIES_FILE` — Pfad zur Netscape-`cookies.txt` (hat Vorrang)
+  - `YTDLP_COOKIES_FROM_BROWSER` — z. B. `firefox:default` (nur Desktop)
+  - sonst automatisch `$BRAINROT_STATE_DIR/cookies.txt`
+    (Default `~/.openclaw/state/brainrot/cookies.txt`), wenn vorhanden
+  - Die Datei ist ein Zugang → **außerhalb** Repo/Workspace. yt-dlp schreibt sie
+    beim Lauf zurück (beschreibbar halten). Details: `modules/yt_clips/README.md`.
 - `TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET`, `TIKTOK_REDIRECT_URI`,
   `TIKTOK_ACCESS_TOKEN`, `TIKTOK_TOKEN_FILE` — monitoring
   - Statische App-Creds kommen aus dem OpenClaw-Env (bzw. Team-Store).

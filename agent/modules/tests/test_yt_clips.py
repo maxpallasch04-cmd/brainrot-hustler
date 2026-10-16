@@ -3,11 +3,13 @@
 Run: python3 tests/test_yt_clips.py
 """
 
+import os
 import sys
 import tempfile
 import unittest
 import wave
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -234,6 +236,57 @@ class SelectionTest(unittest.TestCase):
         self.assertTrue(out.exists())
         with VideoFileClip(str(out)) as check:
             self.assertEqual(check.size, [180, 320])
+
+
+class CookieOptsTest(unittest.TestCase):
+    """YouTube bot gate: cookies must reach yt-dlp (no network)."""
+
+    def _clear(self):
+        os.environ.pop("YTDLP_COOKIES_FILE", None)
+        os.environ.pop("YTDLP_COOKIES_FROM_BROWSER", None)
+
+    def test_file_env(self):
+        env = {"YTDLP_COOKIES_FILE": "/tmp/c.txt", "YTDLP_COOKIES_FROM_BROWSER": ""}
+        with mock.patch.dict(os.environ, env, clear=False):
+            self.assertEqual(dlmod.cookie_opts(), {"cookiefile": str(Path("/tmp/c.txt"))})
+
+    def test_from_browser_env(self):
+        with mock.patch.dict(os.environ, {"YTDLP_COOKIES_FROM_BROWSER": "firefox:default"}, clear=False):
+            os.environ.pop("YTDLP_COOKIES_FILE", None)
+            self.assertEqual(dlmod.cookie_opts(), {"cookiesfrombrowser": ("firefox", "default")})
+
+    def test_default_state_dir_file(self):
+        with tempfile.TemporaryDirectory() as d:
+            Path(d, "cookies.txt").write_text("# Netscape HTTP Cookie File\n", encoding="utf-8")
+            with mock.patch.dict(os.environ, {"BRAINROT_STATE_DIR": d}, clear=False):
+                self._clear()
+                self.assertEqual(dlmod.cookie_opts(), {"cookiefile": str(Path(d, "cookies.txt"))})
+
+    def test_empty_when_unconfigured(self):
+        with tempfile.TemporaryDirectory() as d:
+            with mock.patch.dict(os.environ, {"BRAINROT_STATE_DIR": d}, clear=False):
+                self._clear()
+                self.assertEqual(dlmod.cookie_opts(), {})
+
+    def test_bot_check_becomes_actionable(self):
+        err = dlmod._with_hint(Exception("ERROR: Sign in to confirm you're not a bot. Use --cookies"))
+        self.assertIsInstance(err, RuntimeError)
+        self.assertIn("cookies", str(err).lower())
+
+    def test_other_errors_pass_through(self):
+        original = ValueError("nope")
+        self.assertIs(dlmod._with_hint(original), original)
+
+    def test_ytdlp_accepts_the_opts(self):
+        try:
+            import yt_dlp
+        except ImportError:
+            self.skipTest("yt-dlp not installed")
+        with tempfile.TemporaryDirectory() as d:
+            Path(d, "cookies.txt").write_text("# Netscape HTTP Cookie File\n", encoding="utf-8")
+            with mock.patch.dict(os.environ, {"BRAINROT_STATE_DIR": d}, clear=False):
+                self._clear()
+                yt_dlp.YoutubeDL({"quiet": True, **dlmod.cookie_opts()}).close()
 
 
 if __name__ == "__main__":

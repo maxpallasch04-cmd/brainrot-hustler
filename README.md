@@ -81,6 +81,13 @@ Umgebungsvariablen injiziert → `modules/hosting` liest `os.environ`.
 > Für Kontexte **außerhalb** des Gateways (Sandbox/remote/anderer Host) reicht
 > das nicht — dort braucht es eine eigene `.env` neben `modules/`.
 
+**YouTube-Cookies** (für `yt_clips`) sind ebenfalls ein Zugang: YouTube blockt
+Rechenzentrums-IPs („Sign in to confirm you're not a bot"). Eine Netscape-
+`cookies.txt` liegt auf dem Host **außerhalb** von Workspace/Repo — Default
+`~/.openclaw/state/brainrot/cookies.txt` (`BRAINROT_STATE_DIR` verschiebt das
+Verzeichnis), Pfad überschreibbar via `YTDLP_COOKIES_FILE`. yt-dlp schreibt sie
+beim Lauf zurück (beschreibbar halten). Ohne Cookies scheitert der YT-Download.
+
 ---
 
 ## 4. Python-Umgebung & Abhängigkeiten
@@ -200,6 +207,9 @@ Heartbeat: stündlich 09:00–22:00 (`lightContext`, isolierte Session).
   **Partieller Patch** (nur `agents.brainrothustler`), vor dem Einspielen mergen.
 - `agent/bin/cli`: Modul-Wrapper (venv aktivieren → `python3 -m "$@"` aus
   `modules/`). Muss im Deploy **ausführbar** sein (`chmod +x bin/cli`).
+- **YouTube-Cookies**: liegen außerhalb des Repos
+  (`~/.openclaw/state/brainrot/cookies.txt`) und sind **nicht** Teil des Deploys —
+  pro Host einmalig bereitstellen, sonst scheitert der YT-Download am Bot-Schutz.
 - `agent/BOOTSTRAP.md` ist noch im Repo → ein Deploy startet das Onboarding
   erneut; vor dem ersten Deploy löschen oder bewusst behalten.
 

@@ -119,6 +119,12 @@ YT-Spezifische steht hier — die Pipeline ist generisch.
    ```
    Danach wieder bei `format` beginnen.
 
+   **Cookies:** YouTube blockt Rechenzentrums-IPs (Bot-Schutz) — der Download
+   braucht eine angemeldete Session. Die Cookies liegen meist schon als
+   `~/.openclaw/state/brainrot/cookies.txt` (Details/Alternativen:
+   `modules/yt_clips/README.md` → Cookies). Fehlt der Bot-Check-Hinweis nicht,
+   meldet der Download genau, was zu tun ist.
+
 ### Untertitel (falls das Rezept sie will)
 
    **Nach dem Rendern.** Transcript-Pfad steht in `next`/`list` (`subs_path`).

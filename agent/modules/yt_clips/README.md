@@ -33,6 +33,21 @@ Fallback pro Clip neu erkennen. Der Zustand liegt in `data/brainrot.db`
 
 Alle Befehle geben JSON aus. `--db <pfad>` überschreibt die DB (vor das Subkommando).
 
+## Cookies (Bot-Schutz)
+
+YouTube verlangt auf Rechenzentrums-IPs eine angemeldete Session („Sign in to
+confirm you're not a bot"). Der Download liest Cookies automatisch aus einer
+Netscape-`cookies.txt`:
+
+- `YTDLP_COOKIES_FILE` — Pfad zur Cookie-Datei (hat Vorrang)
+- `YTDLP_COOKIES_FROM_BROWSER` — z. B. `firefox:default` (nur Desktop)
+- sonst `$BRAINROT_STATE_DIR/cookies.txt`
+  (Default `~/.openclaw/state/brainrot/cookies.txt`), wenn vorhanden
+
+Die Datei ist ein Zugang → **außerhalb** Repo/Workspace halten. yt-dlp schreibt sie
+beim Lauf zurück (beschreibbar halten). Schlägt der Download am Bot-Check fehl,
+wirft `download` einen Hinweis auf genau diese Optionen.
+
 ## Format (pro Video)
 
 Regions-Liste für `video_generation.layout`, mit **benannten** Regionen (damit pro
