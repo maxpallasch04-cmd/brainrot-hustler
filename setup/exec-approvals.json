@@ -7,10 +7,11 @@
       "askFallback": "deny",
       "allowlist": [
         {
-          "pattern": "/home/ubuntu/.openclaw/workspace-brainrothustler/.venv/bin/python3",
-          "argPattern": "^-m (modules\\.)?(hosting|longterm_memory|monitoring|subtitles|twitch_clips|video_generation|yt_clips)\\.cli( \\S+)*$"
+          "pattern": "/home/ubuntu/.openclaw/workspace-brainrothustler/bin/br",
+          "argPattern": "^(hosting|longterm_memory|monitoring|subtitles|twitch_clips|video_generation|yt_clips)\\.cli( \\S+)*$"
         }
       ]
     }
   }
 }
+
