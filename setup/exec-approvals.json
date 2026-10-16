@@ -7,11 +7,7 @@
       "askFallback": "deny",
       "allowlist": [
         {
-          "pattern": "~/.openclaw/workspace-brainrothustler/.venv/bin/python3",
-          "argPattern": "^-m (modules\\.)?(hosting|longterm_memory|monitoring|subtitles|twitch_clips|video_generation|yt_clips)\\.cli( \\S+)*$"
-        },
-        {
-          "pattern": "python3",
+          "pattern": "/home/ubuntu/.openclaw/workspace-brainrothustler/.venv/bin/python3",
           "argPattern": "^-m (modules\\.)?(hosting|longterm_memory|monitoring|subtitles|twitch_clips|video_generation|yt_clips)\\.cli( \\S+)*$"
         }
       ]
