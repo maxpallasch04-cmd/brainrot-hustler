@@ -33,7 +33,7 @@ Fallback pro Clip neu erkennen. Der Zustand liegt in `data/brainrot.db`
 
 Alle Befehle geben JSON aus. `--db <pfad>` überschreibt die DB (vor das Subkommando).
 
-## Cookies (Bot-Schutz)
+## Cookies & gesperrte IPs (Bot-Schutz)
 
 YouTube verlangt auf Rechenzentrums-IPs eine angemeldete Session („Sign in to
 confirm you're not a bot"). Der Download liest Cookies automatisch aus einer
@@ -47,6 +47,18 @@ Netscape-`cookies.txt`:
 Die Datei ist ein Zugang → **außerhalb** Repo/Workspace halten. yt-dlp schreibt sie
 beim Lauf zurück (beschreibbar halten). Schlägt der Download am Bot-Check fehl,
 wirft `download` einen Hinweis auf genau diese Optionen.
+
+**Cookies ≠ IP.** Ist die IP/ASN selbst gesperrt, hilft der beste Cookie nichts.
+Dafür zwei Schalter (beide ohne Code-Änderung nutzbar):
+
+- `YTDLP_PROXY` — nicht gesperrter Ausgang, z. B.
+  `socks5://user:pass@host:1080` oder `http://host:8080`. Residential/Mobile
+  wirkt am besten — möglichst dieselbe Region wie die Cookie-Session.
+- `YTDLP_EXTRACTOR_ARGS` — z. B. `youtube:player_client=tv,web_safari`
+  (entspricht yt-dlp `--extractor-args`; manchmal reicht schon das).
+
+Zusätzlich hilft ein **aktuelles yt-dlp** (`python3 -m pip install -U yt-dlp`)
+und der PO-Token-Provider (`bgutil-ytdlp-pot-provider`).
 
 ## Format (pro Video)
 

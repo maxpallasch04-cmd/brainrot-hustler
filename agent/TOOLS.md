@@ -115,11 +115,15 @@ Wake bei Fertig). **Nicht der Standard.**
 
 - `TWITCH_CLIENT_ID`, `TWITCH_CLIENT_SECRET` — twitch_clips
 - **YouTube-Cookies** (`yt_clips`) — YouTube blockt Rechenzentrums-IPs
-  („Sign in to confirm you're not a bot"). Ohne Cookies scheitert der Download.
+  („Sign in to confirm you're not a bot"). Cookies heilen den Bot-Check, **nicht**
+  eine Sperre der IP selbst.
   - `YTDLP_COOKIES_FILE` — Pfad zur Netscape-`cookies.txt` (hat Vorrang)
   - `YTDLP_COOKIES_FROM_BROWSER` — z. B. `firefox:default` (nur Desktop)
   - sonst automatisch `$BRAINROT_STATE_DIR/cookies.txt`
     (Default `~/.openclaw/state/brainrot/cookies.txt`), wenn vorhanden
+  - `YTDLP_PROXY` — nicht gesperrter Ausgang (z. B. `socks5://host:1080`);
+    **die** Lösung, wenn die IP selbst geblockt ist
+  - `YTDLP_EXTRACTOR_ARGS` — z. B. `youtube:player_client=tv,web_safari`
   - Die Datei ist ein Zugang → **außerhalb** Repo/Workspace. yt-dlp schreibt sie
     beim Lauf zurück (beschreibbar halten). Details: `modules/yt_clips/README.md`.
 - `TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET`, `TIKTOK_REDIRECT_URI`,

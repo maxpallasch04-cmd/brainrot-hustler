@@ -48,6 +48,50 @@ def cookie_opts() -> dict:
     return {}
 
 
+def _parse_extractor_args(raw: str) -> dict:
+    """``youtube:player_client=tv,web_safari`` -> ``{'youtube': {'player_client': [...]}}``.
+
+    Mirrors yt-dlp's own ``--extractor-args`` parsing: one ``IE:ARGS`` pair,
+    args separated by ``;``, values by unescaped commas (``\\,`` escapes one).
+    """
+    ie, _, rest = raw.partition(":")
+    if not rest:
+        return {}
+    fields = {}
+    for arg in rest.split(";"):
+        key, sep, vals = arg.partition("=")
+        if not sep:
+            continue
+        fields[key.strip().lower().replace("-", "_")] = [
+            v.replace("\\,", ",").strip() for v in re.split(r"(?<!\\),", vals)
+        ]
+    return {ie.strip(): fields} if fields else {}
+
+
+def net_opts() -> dict:
+    """Optional network escape hatches from the environment (empty when unset).
+
+    YouTube blocks many datacenter IPs outright — cookies alone do not lift a
+    block on the **IP**. These are the levers for that case:
+
+    - ``YTDLP_PROXY`` — an exit that is not blocked, e.g.
+      ``socks5://user:pass@host:1080`` or ``http://host:8080``. A residential/
+      mobile IP works best, ideally in the same region as the cookie session.
+    - ``YTDLP_EXTRACTOR_ARGS`` — e.g. ``youtube:player_client=tv,web_safari``
+      (mirrors yt-dlp's ``--extractor-args``).
+    """
+    opts: dict = {}
+    proxy = os.environ.get("YTDLP_PROXY", "").strip()
+    if proxy:
+        opts["proxy"] = proxy
+    raw = os.environ.get("YTDLP_EXTRACTOR_ARGS", "").strip()
+    if raw:
+        args = _parse_extractor_args(raw)
+        if args:
+            opts["extractor_args"] = args
+    return opts
+
+
 def _with_hint(exc: Exception) -> Exception:
     """Turn YouTube's bot-check failure into an actionable message."""
     msg = str(exc)
@@ -92,6 +136,7 @@ def download(url: str, out_dir=DEFAULT_OUT_DIR, *, overwrite=False, quiet=True,
         "noplaylist": True,
     }
     opts.update(cookie_opts())
+    opts.update(net_opts())
     if subs_lang:
         opts.update({
             "writesubtitles": True,

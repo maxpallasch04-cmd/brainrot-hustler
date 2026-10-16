@@ -289,5 +289,54 @@ class CookieOptsTest(unittest.TestCase):
                 yt_dlp.YoutubeDL({"quiet": True, **dlmod.cookie_opts()}).close()
 
 
+class NetOptsTest(unittest.TestCase):
+    """IP-block escape hatches (proxy / player client), no network."""
+
+    def _clear(self):
+        os.environ.pop("YTDLP_PROXY", None)
+        os.environ.pop("YTDLP_EXTRACTOR_ARGS", None)
+
+    def test_proxy_env(self):
+        with mock.patch.dict(os.environ, {"YTDLP_PROXY": "socks5://h:1080"}, clear=False):
+            os.environ.pop("YTDLP_EXTRACTOR_ARGS", None)
+            self.assertEqual(dlmod.net_opts(), {"proxy": "socks5://h:1080"})
+
+    def test_extractor_args_env(self):
+        env = {"YTDLP_EXTRACTOR_ARGS": "youtube:player_client=tv,web_safari"}
+        with mock.patch.dict(os.environ, env, clear=False):
+            os.environ.pop("YTDLP_PROXY", None)
+            self.assertEqual(dlmod.net_opts(), {
+                "extractor_args": {"youtube": {"player_client": ["tv", "web_safari"]}},
+            })
+
+    def test_extractor_args_escaping(self):
+        env = {"YTDLP_EXTRACTOR_ARGS": "youtube:player-client=a\\,b"}
+        with mock.patch.dict(os.environ, env, clear=False):
+            os.environ.pop("YTDLP_PROXY", None)
+            self.assertEqual(dlmod.net_opts(), {
+                "extractor_args": {"youtube": {"player_client": ["a,b"]}},
+            })
+
+    def test_empty_when_unconfigured(self):
+        with mock.patch.dict(os.environ, {}, clear=False):
+            self._clear()
+            self.assertEqual(dlmod.net_opts(), {})
+
+    def test_bad_extractor_args_ignored(self):
+        with mock.patch.dict(os.environ, {"YTDLP_EXTRACTOR_ARGS": "nonsense"}, clear=False):
+            os.environ.pop("YTDLP_PROXY", None)
+            self.assertEqual(dlmod.net_opts(), {})
+
+    def test_ytdlp_accepts_net_opts(self):
+        try:
+            import yt_dlp
+        except ImportError:
+            self.skipTest("yt-dlp not installed")
+        env = {"YTDLP_PROXY": "http://127.0.0.1:9",
+               "YTDLP_EXTRACTOR_ARGS": "youtube:player_client=tv"}
+        with mock.patch.dict(os.environ, env, clear=False):
+            yt_dlp.YoutubeDL({"quiet": True, **dlmod.net_opts()}).close()
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
