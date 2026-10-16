@@ -140,7 +140,14 @@ loginctl enable-linger "$USER"      # läuft auch ohne Login-Session
 ```
 
 Läuft der Server auf `127.0.0.1:4416` (Default), braucht yt-dlp **keine**
-Konfiguration. Prüfen:
+Konfiguration. Port-Check (jeder HTTP-Code — 200 *oder* 400 — heißt „läuft";
+nur eine Connection-Fehlermeldung heißt „aus"):
+
+```bash
+curl -sS -o /dev/null -w 'HTTP %{http_code}\n' http://127.0.0.1:4416/
+```
+
+Und der eigentliche Test:
 
 ```bash
 python3 -m yt_dlp -v "<url>" 2>&1 | grep -E "PO Token Providers|Generating"
