@@ -88,6 +88,68 @@ Rechenzentrums-IPs („Sign in to confirm you're not a bot"). Eine Netscape-
 Verzeichnis), Pfad überschreibbar via `YTDLP_COOKIES_FILE`. yt-dlp schreibt sie
 beim Lauf zurück (beschreibbar halten). Ohne Cookies scheitert der YT-Download.
 
+### YouTube: PO-Token-Provider (optional — nur bei IP-Sperre)
+
+Cookies heilen den Bot-Check, **nicht** eine Sperre der IP/ASN. Dagegen hilft der
+PO-Token-Provider `bgutil-ytdlp-pot-provider`; die empfohlene Kombi ist Provider
+**+** Cookies. Er läuft auf der VPS **nativ mit Node — kein Docker nötig**: der
+langsame Weg ist der *Script*-Modus (neuer Node-Prozess pro Aufruf), der
+*Server*-Modus ist schnell und ebenfalls reines Node. Docker wäre nur eine zweite
+Zustellform desselben Servers.
+
+Voraussetzungen: `node >= 22` (`node --version`!), `npm >= 9`,
+`yt-dlp >= 2025.05.22`. Version **≥ 2.0.0** nehmen — davor hatte der Server eine
+RCE (GHSA-qpv9-8xfj-xx9m); seit 2.0.0 bindet er nur noch auf localhost.
+
+```bash
+# 1) Plugin in DIE venv, die der Wrapper benutzt
+~/.openclaw/workspace-brainrothustler/.venv/bin/pip install -U bgutil-ytdlp-pot-provider
+
+# 2) Provider bauen (Version = Plugin-Version)
+git clone --single-branch --branch 2.0.2 \
+    https://github.com/Brainicism/bgutil-ytdlp-pot-provider.git ~/bgutil-ytdlp-pot-provider
+cd ~/bgutil-ytdlp-pot-provider/server && npm ci && npx tsc
+```
+
+Dauerbetrieb als **systemd-User-Service** (`~/.config/systemd/user/bgutil.service`;
+`ExecStart`-Pfad ggf. an `which node` anpassen):
+
+```ini
+[Unit]
+Description=bgutil PO token provider
+
+[Service]
+ExecStart=/usr/bin/node %h/bgutil-ytdlp-pot-provider/server/build/main.js
+WorkingDirectory=%h/bgutil-ytdlp-pot-provider/server
+Restart=always
+
+[Install]
+WantedBy=default.target
+```
+
+```bash
+systemctl --user daemon-reload
+systemctl --user enable --now bgutil
+loginctl enable-linger "$USER"      # läuft auch ohne Login-Session
+```
+
+Läuft der Server auf `127.0.0.1:4416` (Default), braucht yt-dlp **keine**
+Konfiguration. Prüfen:
+
+```bash
+python3 -m yt_dlp -v "<url>" 2>&1 | grep -E "PO Token Providers|Generating"
+# erwartet:  [pot] PO Token Providers: bgutil:http-2.0.2 (external)
+#            [pot:bgutil:http] Generating a gvs PO Token for web client ...
+```
+
+Kommt trotz Provider weiter der Bot-Check, Client wechseln (env, siehe `TOOLS.md`):
+`YTDLP_EXTRACTOR_ARGS="youtube:player_client=mweb,tv,web_safari"`.
+
+> Den Server **nicht** auf `0.0.0.0` binden (`-H`/`-p` nicht verändern) — er ist
+> unauthentifiziert. Notnagel, falls `npm ci` an `canvas` scheitert: das
+> Docker-Image `brainicism/bgutil-ytdlp-pot-provider` mit
+> `-p 127.0.0.1:4416:4416` (oder Deno statt Node).
+
 ---
 
 ## 4. Python-Umgebung & Abhängigkeiten
@@ -210,6 +272,9 @@ Heartbeat: stündlich 09:00–22:00 (`lightContext`, isolierte Session).
 - **YouTube-Cookies**: liegen außerhalb des Repos
   (`~/.openclaw/state/brainrot/cookies.txt`) und sind **nicht** Teil des Deploys —
   pro Host einmalig bereitstellen, sonst scheitert der YT-Download am Bot-Schutz.
+- **PO-Token-Provider** (`bgutil`, optional): nur nötig, wenn die VPS-IP selbst
+  geblockt ist — dann helfen Cookies nicht. Läuft nativ mit Node ≥ 22 als
+  systemd-User-Service, **kein Docker** (Anleitung in §3).
 - `agent/BOOTSTRAP.md` ist noch im Repo → ein Deploy startet das Onboarding
   erneut; vor dem ersten Deploy löschen oder bewusst behalten.
 
