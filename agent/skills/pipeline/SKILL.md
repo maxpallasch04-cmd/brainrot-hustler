@@ -33,7 +33,7 @@ ist bereits präzise (Idee + Rezept) — hier wird nur ausgeführt, keine Idee e
    auf das Kanalwissen im Langzeitgedächtnis (und den Kontext aus Schritt 3).
 5. **Video hosten.**
    ```
-   python3 -m hosting.cli upload --file out.mp4      # R2; räumt alte Videos automatisch weg
+   ~/.openclaw/workspace-brainrothustler/bin/cli hosting.cli upload --file out.mp4      # R2; räumt alte Videos automatisch weg
    ```
    Die `url` aus dem JSON parsen. Nach dem Upload bleibt nur das neueste Video im
    Bucket (`R2_KEEP`) — der Link aus dem vorherigen Lauf ist danach weg.
@@ -42,8 +42,8 @@ ist bereits präzise (Idee + Rezept) — hier wird nur ausgeführt, keine Idee e
    und Speicherort + Name (Pfad) ergänzen. Nicht entfernen oder neu planen — der
    Eintrag existiert schon.
    ```
-   python3 -m video_generation.cli probe --in out.mp4      # Länge für --len-s
-   python3 -m longterm_memory.cli add-video --title "<t>" --art "<art des Rezepts>" \
+   ~/.openclaw/workspace-brainrothustler/bin/cli video_generation.cli probe --in out.mp4      # Länge für --len-s
+   ~/.openclaw/workspace-brainrothustler/bin/cli longterm_memory.cli add-video --title "<t>" --art "<art des Rezepts>" \
        --len-s <s> --description "<d>" --theme "<theme>" --recipe "<recipe>"
    ```
    Kontext aus Schritt 3 (z. B. Quelle/Zeitfenster) in `--description` mitführen.

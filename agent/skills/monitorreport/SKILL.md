@@ -16,7 +16,7 @@ Modul-Doku: `monitoring/README.md`, `longterm_memory/README.md`.
    abgleichen, den Report berechnen, speichern und die frischen Metrik-Schnappschüsse
    anhängen.
    ```
-   python3 -m monitoring.cli analyze --max 50
+   ~/.openclaw/workspace-brainrothustler/bin/cli monitoring.cli analyze --max 50
    ```
    JSON-Felder: `N`, `G`, `d_global`, `V_0`, `V_1`, `d_video`, `blowups`,
    `unmatched`.

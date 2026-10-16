@@ -1,5 +1,8 @@
 # hosting
 
+> **Aufruf:** `~/.openclaw/workspace-brainrothustler/bin/cli <modul>.cli <args>`
+> (Workspace-Wrapper, siehe `TOOLS.md`) — aus jedem cwd, venv wird automatisch aktiviert.
+
 Gib ihm eine Datei → bekomme eine öffentliche URL; oder gib ihm einen Link →
 bekomme eine Datei.
 
@@ -15,13 +18,13 @@ gratis und läuft in einem einzigen Bulk-Request.
 ## CLI
 
 ```
-python3 -m hosting.cli upload --file out.mp4                     # hochladen + aufräumen
-python3 -m hosting.cli upload --file out.mp4 --no-prune          # ohne Aufräumen
-python3 -m hosting.cli upload --file out.mp4 --key videos/x.mp4  # eigener Key
-echo "hi" | python3 -m hosting.cli upload --file - --filename hello.txt
-python3 -m hosting.cli usage                                     # Objekte + freier Platz
-python3 -m hosting.cli prune                                     # manuell aufräumen
-python3 -m hosting.cli download --url <link> --out clips/x.mp4   # Direktlink → Datei
+~/.openclaw/workspace-brainrothustler/bin/cli hosting.cli upload --file out.mp4                     # hochladen + aufräumen
+~/.openclaw/workspace-brainrothustler/bin/cli hosting.cli upload --file out.mp4 --no-prune          # ohne Aufräumen
+~/.openclaw/workspace-brainrothustler/bin/cli hosting.cli upload --file out.mp4 --key videos/x.mp4  # eigener Key
+echo "hi" | ~/.openclaw/workspace-brainrothustler/bin/cli hosting.cli upload --file - --filename hello.txt
+~/.openclaw/workspace-brainrothustler/bin/cli hosting.cli usage                                     # Objekte + freier Platz
+~/.openclaw/workspace-brainrothustler/bin/cli hosting.cli prune                                     # manuell aufräumen
+~/.openclaw/workspace-brainrothustler/bin/cli hosting.cli download --url <link> --out clips/x.mp4   # Direktlink → Datei
 ```
 
 Upload-Ausgabe-JSON: `url`, `host`, `bucket`, `key`, `filename`, `bytes`, `pruned`

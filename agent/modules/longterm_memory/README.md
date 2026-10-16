@@ -1,5 +1,8 @@
 # longterm_memory
 
+> **Aufruf:** `~/.openclaw/workspace-brainrothustler/bin/cli <modul>.cli <args>`
+> (Workspace-Wrapper, siehe `TOOLS.md`) — aus jedem cwd, venv wird automatisch aktiviert.
+
 Dauerhafter Speicher für die Videos des Kanals und ihre Metrik-Schnappschüsse —
 das Langzeitgedächtnis des Agenten. `monitoring` schreibt hinein; die
 Content-Planung liest daraus.
@@ -38,13 +41,13 @@ Video gebaut wurde — genutzt für die Analyse pro Rezept.
 ## CLI
 
 ```
-python3 -m longterm_memory.cli add-video --title "t" --art "Twitch-Clip" --len-s 30 \
+~/.openclaw/workspace-brainrothustler/bin/cli longterm_memory.cli add-video --title "t" --art "Twitch-Clip" --len-s 30 \
     --theme "cats" --recipe "twitchkatze"
-python3 -m longterm_memory.cli get-video 1
-python3 -m longterm_memory.cli list-videos [--status Created|Uploaded]
-python3 -m longterm_memory.cli upload 1 [--at <unix_ts>]
-python3 -m longterm_memory.cli add-metric 1 1200 30 90 [--ts <unix_ts>]
-python3 -m longterm_memory.cli newest-metric 1
+~/.openclaw/workspace-brainrothustler/bin/cli longterm_memory.cli get-video 1
+~/.openclaw/workspace-brainrothustler/bin/cli longterm_memory.cli list-videos [--status Created|Uploaded]
+~/.openclaw/workspace-brainrothustler/bin/cli longterm_memory.cli upload 1 [--at <unix_ts>]
+~/.openclaw/workspace-brainrothustler/bin/cli longterm_memory.cli add-metric 1 1200 30 90 [--ts <unix_ts>]
+~/.openclaw/workspace-brainrothustler/bin/cli longterm_memory.cli newest-metric 1
 ```
 
 Alle Befehle geben JSON aus.

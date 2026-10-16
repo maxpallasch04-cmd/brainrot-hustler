@@ -28,7 +28,7 @@ YT-Spezifische steht hier — die Pipeline ist generisch.
    kommen und was einen clipwürdigen Moment ausmacht.
 2. **Offene Arbeit prüfen:**
    ```
-   python3 -m yt_clips.cli next
+   ~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli next
    ```
    Die `action` sagt, was zu tun ist: `format` | `clip` | `find` | `download`.
    **Immer `next` fragen** — nie parallel dieselben Clips rendern.
@@ -38,7 +38,7 @@ YT-Spezifische steht hier — die Pipeline ist generisch.
    a. **4 Screenshots**, gleichmäßig über das Video verteilt (nicht am
       Anfang, sonst wird z. B. eine Halbzeit-Vollbildgrafik als „Layout" erkannt):
       ```
-      python3 -m video_generation.cli frames --in <pfad> --count 4 --out-dir frames --width 1280
+      ~/.openclaw/workspace-brainrothustler/bin/cli video_generation.cli frames --in <pfad> --count 4 --out-dir frames --width 1280
       ```
    b. **Stufe 1 — grobe Boxen:** die 4 Bilder mit dem Vision-Modell ansehen → es
       liefert **Boxen** `(x, y, w, h)` für die erkennbaren Bereiche (Scoreboard,
@@ -47,7 +47,7 @@ YT-Spezifische steht hier — die Pipeline ist generisch.
       **nur diesen Ausschnitt** nochmal ins Vision-Modell geben (Schrift wird so
       lesbar):
       ```
-      python3 -m yt_clips.cli crop-frame --in frames/<bild>.png --box <score-box> --out sb.png --scale 2
+      ~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli crop-frame --in frames/<bild>.png --box <score-box> --out sb.png --scale 2
       ```
       Es liefert die **Unterboxen** (Name, Score, Liste …) — Koordinaten **relativ
       zum Crop**. Zurückrechnen mit dem `offset` aus der Ausgabe
@@ -58,7 +58,7 @@ YT-Spezifische steht hier — die Pipeline ist generisch.
       (z. B. `scoreboard`, `action`) — damit lässt sie sich pro Clip an-/abwählen.
    e. Ergebnis speichern (Format = Regions-Liste für `video_generation layout`):
       ```
-      python3 -m yt_clips.cli format-set --source <id> --regions fmt.json
+      ~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli format-set --source <id> --regions fmt.json
       ```
 
 ### `find` — clipwürdige Stellen finden
@@ -68,11 +68,11 @@ YT-Spezifische steht hier — die Pipeline ist generisch.
    setzen**. Zahlen im Transkript suchen; **OCR nur zur Kontrolle** (selten, lokal)
    auf der Score-Box:
    ```
-   python3 -m subtitles.cli numbers --in <transcript.vtt> --min 6 --max 10
+   ~/.openclaw/workspace-brainrothustler/bin/cli subtitles.cli numbers --in <transcript.vtt> --min 6 --max 10
    ```
    Treffer als Kandidaten eintragen, unpassende streichen (`status: Skipped`):
    ```
-   python3 -m yt_clips.cli candidates-add --source <id> --json cands.json
+   ~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli candidates-add --source <id> --json cands.json
    ```
    Schnitte nur, wo das **Scoreboard sichtbar** ist.
 
@@ -80,7 +80,7 @@ YT-Spezifische steht hier — die Pipeline ist generisch.
    Kommentator. Als günstige Vorauswahl ergänzend zum Score nutzen; kein
    Vision-Modell, keine API-Kosten:
    ```
-   python3 -m yt_clips.cli highlights --source <id> --top 10 --add
+   ~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli highlights --source <id> --top 10 --add
    ```
    Die Kandidaten (`reason` sagt warum: „Kapitel: …" / „Lautheit …") überfliegen,
    unpassende streichen (`status: Skipped`).
@@ -93,7 +93,7 @@ YT-Spezifische steht hier — die Pipeline ist generisch.
 ### `clip` — einen Kandidaten rendern
 
    ```
-   python3 -m yt_clips.cli clip --clip <clip-id> --out out.mp4 --size 1080x1920 --used
+   ~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli clip --clip <clip-id> --out out.mp4 --size 1080x1920 --used
    ```
    Setzt das gespeicherte Format als `regions` ein (Scoreboard + Action) und
    schneidet `start`–`end`. Danach ist der Clip `Used`; ist nichts mehr übrig,
@@ -101,13 +101,13 @@ YT-Spezifische steht hier — die Pipeline ist generisch.
    - **Auswahl pro Clip (Hybrid):** 1 Frame aus dem Clip ansehen und nicht
      vorhandene Boxen abwählen (Region-`name`):
      ```
-     python3 -m yt_clips.cli clip --clip <id> --out out.mp4 --drop scoreboard --used
+     ~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli clip --clip <id> --out out.mp4 --drop scoreboard --used
      ```
      `--only a,b` / `--drop a,b` filtern die benannten Regionen. Der
      **Score-Bereich** wird erstmal **immer** mitgezeigt (Rezept kann das ändern).
    - **Fallback:** passt kein bekanntes Layout (Studio/Halbzeit) → 4 Frames **aus
      dem Clip** → wie unter `format` neu erkennen → per Clip speichern:
-     `python3 -m yt_clips.cli format-set --clip <id> --regions fmt.json`
+     `~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli format-set --clip <id> --regions fmt.json`
      (überschreibt die Quelle).
 
 ### `download` — neues Video
@@ -115,7 +115,7 @@ YT-Spezifische steht hier — die Pipeline ist generisch.
    Kein offenes Video mehr → neues laden (das Rezept bestimmt die Quelle).
    Transcript gleich mitnehmen, wenn das Rezept Untertitel braucht:
    ```
-   python3 -m yt_clips.cli download --url <url> --out-dir clips --recipe <name> --subs-lang en
+   ~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli download --url <url> --out-dir clips --recipe <name> --subs-lang en
    ```
    Danach wieder bei `format` beginnen.
 
@@ -124,8 +124,8 @@ YT-Spezifische steht hier — die Pipeline ist generisch.
    **Nach dem Rendern.** Transcript-Pfad steht in `next`/`list` (`subs_path`).
    Untertitel bleiben ein eigenes Artefakt — Fenster schneiden, dann einbrennen:
    ```
-   python3 -m subtitles.cli cut  --in <transcript.vtt> --start <start> --end <end> --out clip.srt
-   python3 -m subtitles.cli burn --in out.mp4 --subs clip.srt --out final.mp4 \
+   ~/.openclaw/workspace-brainrothustler/bin/cli subtitles.cli cut  --in <transcript.vtt> --start <start> --end <end> --out clip.srt
+   ~/.openclaw/workspace-brainrothustler/bin/cli subtitles.cli burn --in out.mp4 --subs clip.srt --out final.mp4 \
        --font-size 64 --margin-v 220 --outline 3
    ```
    Denselben Text auch für **Titel/Beschreibung/Hashtags** nutzen (Trick, Skater).

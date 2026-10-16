@@ -1,5 +1,8 @@
 # video_generation
 
+> **Aufruf:** `~/.openclaw/workspace-brainrothustler/bin/cli <modul>.cli <args>`
+> (Workspace-Wrapper, siehe `TOOLS.md`) — aus jedem cwd, venv wird automatisch aktiviert.
+
 Editing-Toolkit: schneiden, auf eine 9:16-Fläche einpassen, Bilder an `(x, y, t)`
 überlagern, Audio mischen und verketten. Für jede Videoart nutzen (selbstgeneriert,
 Clips).
@@ -95,18 +98,18 @@ Form (Datei oder `-` für stdin). `clips[]` werden in Reihenfolge verkettet.
 ## CLI
 
 ```
-python3 -m video_generation.cli probe      --in raw.mp4
-python3 -m video_generation.cli frames     --in raw.mp4 --count 4 --out-dir frames
-python3 -m video_generation.cli frames     --in raw.mp4 --at 60,300,900,1800 --width 640
-python3 -m video_generation.cli cut        --in raw.mp4 --start 12 --end 18 --out cut.mp4
-python3 -m video_generation.cli background --in cut.mp4 --out bg.mp4 --size 1080x1920 --bg "#101010"
-python3 -m video_generation.cli overlay    --in bg.mp4  --out ov.mp4 --image logo.png --x 40 --y 80 --start 0.5 --duration 3
-python3 -m video_generation.cli crop       --in raw.mp4 --out r.mp4 --box 300,300,1400,800 --size 1080x800 --fit cover
-python3 -m video_generation.cli layout     --in match.mp4 --out clip.mp4 --regions regions.json --size 1080x1920 --start 1200 --end 1235
-python3 -m video_generation.cli noise      --in ov.mp4  --out gr.mp4 --amount 0.08 --mode vhs
-python3 -m video_generation.cli audio      --in ov.mp4  --out au.mp4 --audio sfx.mp3 --start 1.0 --volume 0.8
-python3 -m video_generation.cli concat     a.mp4 b.mp4 --out merged.mp4
-python3 -m video_generation.cli render     --recipe recipe.json
+~/.openclaw/workspace-brainrothustler/bin/cli video_generation.cli probe      --in raw.mp4
+~/.openclaw/workspace-brainrothustler/bin/cli video_generation.cli frames     --in raw.mp4 --count 4 --out-dir frames
+~/.openclaw/workspace-brainrothustler/bin/cli video_generation.cli frames     --in raw.mp4 --at 60,300,900,1800 --width 640
+~/.openclaw/workspace-brainrothustler/bin/cli video_generation.cli cut        --in raw.mp4 --start 12 --end 18 --out cut.mp4
+~/.openclaw/workspace-brainrothustler/bin/cli video_generation.cli background --in cut.mp4 --out bg.mp4 --size 1080x1920 --bg "#101010"
+~/.openclaw/workspace-brainrothustler/bin/cli video_generation.cli overlay    --in bg.mp4  --out ov.mp4 --image logo.png --x 40 --y 80 --start 0.5 --duration 3
+~/.openclaw/workspace-brainrothustler/bin/cli video_generation.cli crop       --in raw.mp4 --out r.mp4 --box 300,300,1400,800 --size 1080x800 --fit cover
+~/.openclaw/workspace-brainrothustler/bin/cli video_generation.cli layout     --in match.mp4 --out clip.mp4 --regions regions.json --size 1080x1920 --start 1200 --end 1235
+~/.openclaw/workspace-brainrothustler/bin/cli video_generation.cli noise      --in ov.mp4  --out gr.mp4 --amount 0.08 --mode vhs
+~/.openclaw/workspace-brainrothustler/bin/cli video_generation.cli audio      --in ov.mp4  --out au.mp4 --audio sfx.mp3 --start 1.0 --volume 0.8
+~/.openclaw/workspace-brainrothustler/bin/cli video_generation.cli concat     a.mp4 b.mp4 --out merged.mp4
+~/.openclaw/workspace-brainrothustler/bin/cli video_generation.cli render     --recipe recipe.json
 ```
 
 Alle Befehle geben JSON aus.

@@ -11,7 +11,7 @@ OpenClaw über die Config-Dateien in `setup/`.
 ## 1. Repo-Layout
 
 ```
-agent/     → Workspace-Dateien des Agenten (inkl. Code unter modules/)
+agent/     → Workspace-Dateien des Agenten (inkl. Code unter modules/ + Wrapper bin/cli)
 setup/     → Config-Dateien (setzen die Berechtigungen)
 README.md
 ```
@@ -49,6 +49,7 @@ Ergebnis (Endzustand):
 ├── USER.md
 ├── contentplan.md
 ├── assets/
+├── bin/            ← cli — Modul-Wrapper (einziger erlaubter Aufrufweg)
 ├── modules/
 ├── recipes/
 ├── skills/
@@ -114,17 +115,26 @@ python3 -m venv .venv
 .venv/bin/pip install -r modules/requirements.txt
 ```
 
-Die Module laufen mit dem **venv-Interpreter** — aus `modules/` heraus:
+**Aufrufweg für den Agenten ist der Wrapper `bin/cli`.** Er aktiviert die venv und
+wechselt selbst nach `modules/` — Module werden nur so aufgerufen (siehe
+`agent/TOOLS.md`):
+
+```bash
+~/.openclaw/workspace-brainrothustler/bin/cli hosting.cli usage
+```
+
+> `exec` ist **nicht interaktiv**: `source .venv/bin/activate` wirkt dort nicht,
+> und `python3 -m …` direkt aufzurufen ist nicht erlaubt. Darum läuft alles über
+> den Wrapper — **er** steht in der exec-Allowlist (`setup/exec-approvals.json`),
+> nicht der Interpreter.
+
+Zum Entwickeln/Testen von Hand geht weiterhin der venv-Interpreter direkt (aus
+`modules/`):
 
 ```bash
 cd modules
 ../.venv/bin/python3 -m hosting.cli usage
 ```
-
-> `exec` ist **nicht interaktiv**: `source .venv/bin/activate` wirkt dort nicht.
-> Darum immer den Interpreter-Pfad aufrufen und **denselben Pfad in die
-> exec-Allowlist** aufnehmen (`setup/exec-approvals.json`), sonst läuft der
-> Eintrag `python3` ins Leere.
 
 Windows (kein venv): `python -m pytest modules/tests` bzw. `python -m hosting.cli …`.
 `ffmpeg` liefert `imageio-ffmpeg` selbst; ein System-`ffmpeg` ist optional.
@@ -141,6 +151,7 @@ cd ~/.openclaw/workspace-brainrothustler
 # 2) Workspace-Dateien an ihren Platz
 cp -a agent/. .
 rm -rf agent
+chmod +x bin/cli            # Wrapper muss ausführbar sein
 
 # 3) venv anlegen + Modul-Abhängigkeiten (VPS)
 python3 -m venv .venv
@@ -164,7 +175,7 @@ openclaw approvals set --gateway --file /tmp/approvals.merged.json
 openclaw config get agents.entries.brainrothustler.tools
 openclaw exec-policy show --agent brainrothustler
 openclaw approvals get --gateway
-#    Allowlist muss den venv-Interpreter enthalten (~/.openclaw/workspace-brainrothustler/.venv/bin/python3)
+#    Allowlist muss den Wrapper enthalten (~/.openclaw/workspace-brainrothustler/bin/cli)
 
 # 6) Aufräumen: Repo-Rest weg, Workspace = nur die Agent-Dateien
 #    (.venv/ bleibt stehen!)
@@ -182,11 +193,13 @@ Heartbeat: stündlich 09:00–22:00 (`lightContext`, isolierte Session).
 
 - Agent-Workspace-Struktur: steht (`agent/`).
 - `setup/agent-config.json`: steht (Agent, Tools, `exec.mode: ask`, Heartbeat).
-- `setup/exec-approvals.json`: steht als **Entwurf** — Allowlist über die
-  Modul-CLIs, je Eintrag `argPattern`; enthält den venv-Interpreter
-  (`.venv/bin/python3`) **und** bare `python3` (Windows/ohne venv). **Partieller
-  Patch** (nur `agents.brainrothustler`), vor dem Einspielen mergen — Details in
-  `setup/README.md`.
+- `setup/exec-approvals.json`: steht — die Allowlist bindet **den Wrapper**
+  (`~/.openclaw/workspace-brainrothustler/bin/cli`) mit einem `argPattern` über die
+  Modul-CLIs. Der Interpreter steht **nicht** mehr drin (der Wrapper aktiviert die
+  venv selbst) — damit ist der Wrapper das einzige erlaubte Einstiegstoken.
+  **Partieller Patch** (nur `agents.brainrothustler`), vor dem Einspielen mergen.
+- `agent/bin/cli`: Modul-Wrapper (venv aktivieren → `python3 -m "$@"` aus
+  `modules/`). Muss im Deploy **ausführbar** sein (`chmod +x bin/cli`).
 - `agent/BOOTSTRAP.md` ist noch im Repo → ein Deploy startet das Onboarding
   erneut; vor dem ersten Deploy löschen oder bewusst behalten.
 

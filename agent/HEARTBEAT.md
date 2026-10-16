@@ -12,6 +12,6 @@ stehen in `AGENTS.md` — hier nur der Ablauf.
 3. **Video fällig?** Nächster Eintrag mit Upload in **< T h** und Status `geplant`
    (T siehe `AGENTS.md`) → **Pipeline-Skill** ausführen.
 4. **Upload verifizieren**: geplante Uploadzeit vorbei?
-   Optional `python3 -m monitoring.cli list-videos --max 5` prüfen (aus `modules/`).
+   Optional `~/.openclaw/workspace-brainrothustler/bin/cli monitoring.cli list-videos --max 5` prüfen.
    Hochgeladen → ins Langzeitgedächtnis (`upload`) + Eintrag entfernen. Sonst →
    Nachricht, dass hochgeladen werden soll.

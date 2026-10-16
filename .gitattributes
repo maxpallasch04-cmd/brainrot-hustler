@@ -1,0 +1,4 @@
+# Der Modul-Wrapper ist ein Bash-Skript — muss LF behalten (CRLF bricht sie)
+# sonst auf Linux: "bad interpreter: /usr/bin/env bash^M".
+agent/bin/* text eol=lf
+*.sh text eol=lf

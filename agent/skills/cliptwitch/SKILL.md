@@ -17,12 +17,12 @@ Zugangsdaten kommen aus der Umgebung (`TWITCH_CLIENT_ID` /
 1. **Kategorie auflösen.** Twitch hat keine Volltextsuche, also zuerst nach
    Kategorie (oder Broadcaster) eingrenzen.
    ```
-   python3 -m twitch_clips.cli game-id --name "<Game>"
+   ~/.openclaw/workspace-brainrothustler/bin/cli twitch_clips.cli game-id --name "<Game>"
    ```
 2. **Gerankte Shortlist bauen.** Ergebnisse kommen meistgesehen zuerst; clientseitig
    ranken.
    ```
-   python3 -m twitch_clips.cli clips --game "<Game>" --hours 168 --min-views 5000 \
+   ~/.openclaw/workspace-brainrothustler/bin/cli twitch_clips.cli clips --game "<Game>" --hours 168 --min-views 5000 \
        --top 10 --sort velocity --state data/twitch_seen.json
    ```
    - `--sort views` = bewährte Hits, `--sort velocity` = frisch viral (views/hour).
@@ -34,8 +34,8 @@ Zugangsdaten kommen aus der Umgebung (`TWITCH_CLIENT_ID` /
 4. **Herunterladen** (keine Zugangsdaten; vorhandene Dateien werden übersprungen,
    außer `--overwrite`).
    ```
-   python3 -m twitch_clips.cli clips ... \
-     | python3 -m twitch_clips.cli download --from-json - --out-dir clips
+   ~/.openclaw/workspace-brainrothustler/bin/cli twitch_clips.cli clips ... \
+     | ~/.openclaw/workspace-brainrothustler/bin/cli twitch_clips.cli download --from-json - --out-dir clips
    ```
    oder `download --id <clip-id>` / `--url <clip-url>`. Dateien landen in
    `clips/<clip-id>.mp4`.
@@ -44,7 +44,7 @@ Zugangsdaten kommen aus der Umgebung (`TWITCH_CLIENT_ID` /
    platzieren (Bild an `x`/`y` ab `t` für eine Dauer), `audio` ergänzen. Ziel
    `1080x1920`, Höhe ≥ 1280.
    ```
-   python3 -m video_generation.cli render --recipe recipe.json
+   ~/.openclaw/workspace-brainrothustler/bin/cli video_generation.cli render --recipe recipe.json
    ```
    (`--recipe -` liest das Rezept von stdin.)
 6. **Prüfen** und die Datei an die Pipeline übergeben.

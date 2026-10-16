@@ -1,5 +1,8 @@
 # yt_clips
 
+> **Aufruf:** `~/.openclaw/workspace-brainrothustler/bin/cli <modul>.cli <args>`
+> (Workspace-Wrapper, siehe `TOOLS.md`) — aus jedem cwd, venv wird automatisch aktiviert.
+
 State + Ablauf für die **YT-Clip**-Art: ein langes YouTube-Video (Sport) wird in
 mehrere vertikale Clips zerlegt.
 
@@ -15,17 +18,17 @@ Fallback pro Clip neu erkennen. Der Zustand liegt in `data/brainrot.db`
 ## CLI
 
 ```
-python3 -m yt_clips.cli next                                   # format | clip | find | download
-python3 -m yt_clips.cli download --url <url> --out-dir clips --recipe <name> [--subs-lang en]
-python3 -m yt_clips.cli highlights --source 3 --top 10 --add   # Kapitel + Audio-Peaks
-python3 -m yt_clips.cli crop-frame --in frames/<bild>.png --box <box> --out sb.png --scale 2
-python3 -m yt_clips.cli format-set --source 3 --regions fmt.json
-python3 -m yt_clips.cli format-set --clip 5   --regions fmt.json   # per-Clip (Fallback)
-python3 -m yt_clips.cli format-get  --source 3
-python3 -m yt_clips.cli candidates-add --source 3 --json cands.json
-python3 -m yt_clips.cli candidates-list --source 3 [--status Candidate]
-python3 -m yt_clips.cli clip --clip 5 --out out.mp4 --size 1080x1920 [--only a,b | --drop a,b] [--used]
-python3 -m yt_clips.cli list
+~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli next                                   # format | clip | find | download
+~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli download --url <url> --out-dir clips --recipe <name> [--subs-lang en]
+~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli highlights --source 3 --top 10 --add   # Kapitel + Audio-Peaks
+~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli crop-frame --in frames/<bild>.png --box <box> --out sb.png --scale 2
+~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli format-set --source 3 --regions fmt.json
+~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli format-set --clip 5   --regions fmt.json   # per-Clip (Fallback)
+~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli format-get  --source 3
+~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli candidates-add --source 3 --json cands.json
+~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli candidates-list --source 3 [--status Candidate]
+~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli clip --clip 5 --out out.mp4 --size 1080x1920 [--only a,b | --drop a,b] [--used]
+~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli list
 ```
 
 Alle Befehle geben JSON aus. `--db <pfad>` überschreibt die DB (vor das Subkommando).

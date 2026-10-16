@@ -1,5 +1,8 @@
 # monitoring
 
+> **Aufruf:** `~/.openclaw/workspace-brainrothustler/bin/cli <modul>.cli <args>`
+> (Workspace-Wrapper, siehe `TOOLS.md`) — aus jedem cwd, venv wird automatisch aktiviert.
+
 Die eigenen TikTok-Metriken des Kanals abrufen und den täglichen Content-Report
 bauen.
 
@@ -12,12 +15,12 @@ Der Token liegt **außerhalb des Workspace**
 einfach.
 
 ```
-python3 -m monitoring.cli token-status                       # ist ein Token gespeichert? keine Secrets
-python3 -m monitoring.cli login --print-url --redirect-uri <https-uri>
+~/.openclaw/workspace-brainrothustler/bin/cli monitoring.cli token-status                       # ist ein Token gespeichert? keine Secrets
+~/.openclaw/workspace-brainrothustler/bin/cli monitoring.cli login --print-url --redirect-uri <https-uri>
 #   -> URL öffnen, autorisieren, Redirect-URL zurückkopieren:
-python3 -m monitoring.cli login --redirect-uri <https-uri> --finish "<redirect-url-or-code>"
-python3 -m monitoring.cli refresh                            # Refresh erzwingen
-python3 -m monitoring.cli logout                             # widerrufen + löschen
+~/.openclaw/workspace-brainrothustler/bin/cli monitoring.cli login --redirect-uri <https-uri> --finish "<redirect-url-or-code>"
+~/.openclaw/workspace-brainrothustler/bin/cli monitoring.cli refresh                            # Refresh erzwingen
+~/.openclaw/workspace-brainrothustler/bin/cli monitoring.cli logout                             # widerrufen + löschen
 ```
 
 `login` ohne Flags startet den interaktiven lokalen Server-Flow (`--manual` fügt
@@ -26,15 +29,15 @@ stattdessen die Redirect-URL ein; `--no-browser` öffnet keinen Browser).
 ## Daten lesen
 
 ```
-python3 -m monitoring.cli user-stats                 # follower_count, likes_count, video_count
-python3 -m monitoring.cli list-videos --max 50       # eigene öffentliche Videos + Metriken
+~/.openclaw/workspace-brainrothustler/bin/cli monitoring.cli user-stats                 # follower_count, likes_count, video_count
+~/.openclaw/workspace-brainrothustler/bin/cli monitoring.cli list-videos --max 50       # eigene öffentliche Videos + Metriken
 ```
 
 ## Täglicher Report
 
 ```
-python3 -m monitoring.cli analyze --max 50 [--no-blowup]
-python3 -m monitoring.cli reports --limit 5
+~/.openclaw/workspace-brainrothustler/bin/cli monitoring.cli analyze --max 50 [--no-blowup]
+~/.openclaw/workspace-brainrothustler/bin/cli monitoring.cli reports --limit 5
 ```
 
 `analyze` holt die neuesten Videos, gleicht sie mit `longterm_memory` ab, baut einen

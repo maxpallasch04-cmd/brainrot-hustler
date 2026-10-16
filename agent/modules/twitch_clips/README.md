@@ -1,5 +1,8 @@
 # twitch_clips
 
+> **Aufruf:** `~/.openclaw/workspace-brainrothustler/bin/cli <modul>.cli <args>`
+> (Workspace-Wrapper, siehe `TOOLS.md`) — aus jedem cwd, venv wird automatisch aktiviert.
+
 Virale Twitch-Clips für eine Kategorie finden und herunterladen.
 
 Einschränkungen, die die Abfrage beeinflussen:
@@ -16,13 +19,13 @@ Einschränkungen, die die Abfrage beeinflussen:
 ## CLI
 
 ```
-python3 -m twitch_clips.cli game-id --name "Fortnite"
-python3 -m twitch_clips.cli clips --game "Fortnite" --hours 168 --min-views 5000 \
+~/.openclaw/workspace-brainrothustler/bin/cli twitch_clips.cli game-id --name "Fortnite"
+~/.openclaw/workspace-brainrothustler/bin/cli twitch_clips.cli clips --game "Fortnite" --hours 168 --min-views 5000 \
     --top 10 --sort velocity --state data/twitch_seen.json
 
-python3 -m twitch_clips.cli download --id <clip-id> --out-dir clips
-python3 -m twitch_clips.cli download --url <clip-url>
-python3 -m twitch_clips.cli clips ... | python3 -m twitch_clips.cli download --from-json -
+~/.openclaw/workspace-brainrothustler/bin/cli twitch_clips.cli download --id <clip-id> --out-dir clips
+~/.openclaw/workspace-brainrothustler/bin/cli twitch_clips.cli download --url <clip-url>
+~/.openclaw/workspace-brainrothustler/bin/cli twitch_clips.cli clips ... | ~/.openclaw/workspace-brainrothustler/bin/cli twitch_clips.cli download --from-json -
 ```
 
 `clips`-Optionen: `--game` / `--game-id`, `--hours`, `--min-views`,

@@ -39,8 +39,8 @@ setzt, ob das Modell Ton erzeugen soll. `action "list"` zeigt, was konfiguriert 
    `contain` / `on_background` auf `1080x1920`, plus `overlays`, `noise` und der
    gewählte Track in `audio` nach Rezept.
    ```
-   python3 -m video_generation.cli probe --in raw.mp4
-   python3 -m video_generation.cli render --recipe recipe.json
+   ~/.openclaw/workspace-brainrothustler/bin/cli video_generation.cli probe --in raw.mp4
+   ~/.openclaw/workspace-brainrothustler/bin/cli video_generation.cli render --recipe recipe.json
    ```
 6. **Prüfen** und die `.mp4` an die Pipeline übergeben.
 

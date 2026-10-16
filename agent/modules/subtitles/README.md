@@ -1,5 +1,8 @@
 # subtitles
 
+> **Aufruf:** `~/.openclaw/workspace-brainrothustler/bin/cli <modul>.cli <args>`
+> (Workspace-Wrapper, siehe `TOOLS.md`) — aus jedem cwd, venv wird automatisch aktiviert.
+
 Untertitel bleiben ein **eigenes Artefakt** (SRT/VTT) — dieses Modul versteckt sie
 nie im Video. Zwei unabhängige Schritte:
 
@@ -14,10 +17,10 @@ für Titel/Beschreibung/Hashtags lesen — ohne das Video neu zu erzeugen.
 ## CLI
 
 ```
-python3 -m subtitles.cli info --in transcript.vtt
-python3 -m subtitles.cli numbers --in transcript.vtt --min 6 --max 10
-python3 -m subtitles.cli cut  --in transcript.vtt --start 1200 --end 1220 --out clip.srt
-python3 -m subtitles.cli burn --in clip.mp4 --subs clip.srt --out out.mp4 \
+~/.openclaw/workspace-brainrothustler/bin/cli subtitles.cli info --in transcript.vtt
+~/.openclaw/workspace-brainrothustler/bin/cli subtitles.cli numbers --in transcript.vtt --min 6 --max 10
+~/.openclaw/workspace-brainrothustler/bin/cli subtitles.cli cut  --in transcript.vtt --start 1200 --end 1220 --out clip.srt
+~/.openclaw/workspace-brainrothustler/bin/cli subtitles.cli burn --in clip.mp4 --subs clip.srt --out out.mp4 \
     --font-size 64 --margin-v 220 --outline 3
 ```
 
