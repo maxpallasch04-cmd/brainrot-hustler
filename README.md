@@ -113,20 +113,23 @@ git clone --single-branch --branch 2.0.2 https://github.com/Brainicism/bgutil-yt
 cd ~/bgutil-ytdlp-pot-provider/server && npm ci && npx tsc
 ```
 
-Dauerbetrieb als **systemd-User-Service** (`~/.config/systemd/user/bgutil.service`;
-`ExecStart`-Pfad ggf. an `which node` anpassen):
+Dauerbetrieb als **systemd-User-Service**. Der `ExecStart`-Pfad wird aus
+`command -v node` gefüllt — Systemd findet ein nvm-Node sonst nicht:
 
-```ini
+```bash
+mkdir -p ~/.config/systemd/user
+cat > ~/.config/systemd/user/bgutil.service <<EOF
 [Unit]
 Description=bgutil PO token provider
 
 [Service]
-ExecStart=/usr/bin/node %h/bgutil-ytdlp-pot-provider/server/build/main.js
+ExecStart=$(command -v node) %h/bgutil-ytdlp-pot-provider/server/build/main.js
 WorkingDirectory=%h/bgutil-ytdlp-pot-provider/server
 Restart=always
 
 [Install]
 WantedBy=default.target
+EOF
 ```
 
 ```bash
