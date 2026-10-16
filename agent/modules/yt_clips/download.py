@@ -79,6 +79,10 @@ def net_opts() -> dict:
       mobile IP works best, ideally in the same region as the cookie session.
     - ``YTDLP_EXTRACTOR_ARGS`` — e.g. ``youtube:player_client=tv,web_safari``
       (mirrors yt-dlp's ``--extractor-args``).
+    - ``YTDLP_JS_RUNTIMES`` — e.g. ``node`` or ``node:/usr/bin/node,deno``.
+      yt-dlp only enables **deno** by default, so an installed Node is ignored
+      unless it is listed here (YouTube needs a JS runtime for the signature
+      challenge).
     """
     opts: dict = {}
     proxy = os.environ.get("YTDLP_PROXY", "").strip()
@@ -89,6 +93,19 @@ def net_opts() -> dict:
         args = _parse_extractor_args(raw)
         if args:
             opts["extractor_args"] = args
+    runtimes = os.environ.get("YTDLP_JS_RUNTIMES", "").strip()
+    if runtimes:
+        # yt-dlp's API wants {runtime: {'path': ...}} (the CLI converts from
+        # 'RUNTIME[:PATH]' strings) — mirror that here.
+        js: dict = {}
+        for item in runtimes.split(","):
+            item = item.strip()
+            if not item:
+                continue
+            name, _, path = item.partition(":")
+            js[name.strip().lower()] = {"path": path.strip() or None}
+        if js:
+            opts["js_runtimes"] = js
     return opts
 
 

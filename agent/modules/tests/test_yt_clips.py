@@ -295,6 +295,7 @@ class NetOptsTest(unittest.TestCase):
     def _clear(self):
         os.environ.pop("YTDLP_PROXY", None)
         os.environ.pop("YTDLP_EXTRACTOR_ARGS", None)
+        os.environ.pop("YTDLP_JS_RUNTIMES", None)
 
     def test_proxy_env(self):
         with mock.patch.dict(os.environ, {"YTDLP_PROXY": "socks5://h:1080"}, clear=False):
@@ -327,13 +328,28 @@ class NetOptsTest(unittest.TestCase):
             os.environ.pop("YTDLP_PROXY", None)
             self.assertEqual(dlmod.net_opts(), {})
 
+    def test_js_runtimes_env(self):
+        with mock.patch.dict(os.environ, {"YTDLP_JS_RUNTIMES": "node"}, clear=False):
+            self.assertEqual(dlmod.net_opts(), {"js_runtimes": {"node": {"path": None}}})
+
+    def test_js_runtimes_list_with_path(self):
+        env = {"YTDLP_JS_RUNTIMES": "node:/usr/bin/node, deno"}
+        with mock.patch.dict(os.environ, env, clear=False):
+            self.assertEqual(dlmod.net_opts(), {
+                "js_runtimes": {
+                    "node": {"path": "/usr/bin/node"},
+                    "deno": {"path": None},
+                },
+            })
+
     def test_ytdlp_accepts_net_opts(self):
         try:
             import yt_dlp
         except ImportError:
             self.skipTest("yt-dlp not installed")
         env = {"YTDLP_PROXY": "http://127.0.0.1:9",
-               "YTDLP_EXTRACTOR_ARGS": "youtube:player_client=tv"}
+               "YTDLP_EXTRACTOR_ARGS": "youtube:player_client=tv",
+               "YTDLP_JS_RUNTIMES": "node"}
         with mock.patch.dict(os.environ, env, clear=False):
             yt_dlp.YoutubeDL({"quiet": True, **dlmod.net_opts()}).close()
 
