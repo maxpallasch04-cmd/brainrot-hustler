@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# br — BrainrotHustler Modul-Wrapper
+#
+# Aktiviert die Workspace-venv und ruft ein Modul-CLI auf, immer aus modules/.
+# Die Exec-Policy bindet nur dieses Skript (kein `source`-Operand, kein
+# Interpreter-Pfad als erstes Token).
+#
+# Nutzung (aus beliebigem cwd):
+#   /home/ubuntu/.openclaw/workspace-brainrothustler/bin/br <modul.cli> [args...]
+# Beispiel:
+#   .../bin/br yt_clips.cli next
+#   .../bin/br video_generation.cli probe --in out.mp4
+#
+set -euo pipefail
+
+ROOT="/home/ubuntu/.openclaw/workspace-brainrothustler"
+VENV="$ROOT/.venv"
+MODULES="$ROOT/modules"
+
+# shellcheck disable=SC1091
+source "$VENV/bin/activate"
+cd "$MODULES"
+
+if [ "$#" -eq 0 ]; then
+  echo "usage: br <modul.cli> [args...]" >&2
+  echo "module: hosting.cli longterm_memory.cli monitoring.cli subtitles.cli twitch_clips.cli video_generation.cli yt_clips.cli" >&2
+  exit 2
+fi
+
+exec python3 -m "$@"

@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "agents": {
+    "brainrothustler": {
+      "security": "allowlist",
+      "ask": "on-miss",
+      "askFallback": "deny",
+      "allowlist": [
+        {
+          "pattern": "/home/ubuntu/.openclaw/workspace-brainrothustler/bin/br",
+          "argPattern": "^(hosting|longterm_memory|monitoring|subtitles|twitch_clips|video_generation|yt_clips)\\.cli( \\S+)*$"
+        }
+      ]
+    }
+  }
+}
+
