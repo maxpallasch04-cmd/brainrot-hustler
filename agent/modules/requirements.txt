@@ -6,7 +6,9 @@
 
 requests>=2.31           # hosting (Download/HTTP)
 boto3>=1.34              # hosting (Cloudflare R2, S3-kompatibel)
-yt-dlp>=2025.1.1         # twitch_clips, yt_clips (Video-Download)
+# `[default]` ist Pflicht: bringt yt-dlp-ejs (Challenge-Solver-Skripte) mit. Ohne
+# die scheitert YouTube mit "n challenge solving failed" (auch mit Node als Runtime).
+yt-dlp[default]>=2025.1.1  # twitch_clips, yt_clips (Video-Download + JS-Challenge)
 moviepy>=2.0,<3          # video_generation, yt_clips (Schnitt)
 numpy>=1.26              # video_generation, yt_clips, subtitles
 Pillow>=10               # video_generation, yt_clips (Crops/Thumbnails)
