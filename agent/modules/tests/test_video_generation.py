@@ -4,13 +4,15 @@ Run: python3 tests/test_video_generation.py
 Uses tiny, throwaway clips so the whole suite stays fast.
 """
 
+import contextlib
+import io
 import sys
 import tempfile
 import unittest
 from pathlib import Path
 
 import numpy as np
-from moviepy import AudioArrayClip, ColorClip, VideoFileClip
+from moviepy import AudioArrayClip, ColorClip, ImageClip, VideoFileClip
 from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -55,6 +57,67 @@ class VideoGenerationTest(unittest.TestCase):
         try:
             self.assertEqual(edit.contain(clip, (100, 200)).size, (100, 76))
             self.assertEqual(edit.cover(clip, (100, 200)).size, (100, 200))
+        finally:
+            clip.close()
+
+    def test_layout_opacity_and_validation(self):
+        src = str(self.tmp / "in.mp4")
+        _write_video(src, size=(160, 90), duration=0.5)
+        clip = edit.load(src)
+        try:
+            for op in (1.0, 0.5):
+                regions = [
+                    {"name": "score", "box": [0, 0, 160, 20], "size": [180, 40],
+                     "fit": "cover", "position": [0, 0]},
+                    {"name": "action", "box": [0, 20, 160, 70], "size": [180, 280],
+                     "fit": "cover", "position": [0, 40], "opacity": op},
+                ]
+                canvas = edit.layout(clip, regions, (180, 320))
+                out = str(self.tmp / f"op_{op}.mp4")
+                try:
+                    edit.render(canvas, out, fps=10)
+                finally:
+                    canvas.close()
+                self.assertTrue(Path(out).exists())
+        finally:
+            clip.close()
+
+        bad = ColorClip(size=(10, 10), color=(1, 1, 1), duration=0.2)
+        try:
+            with self.assertRaises(ValueError):
+                edit.compose(size=(20, 20), duration=0.2,
+                             layers=[{"clip": bad, "opacity": 1.5}])
+        finally:
+            bad.close()
+
+    def test_render_progress_writes_to_stderr(self):
+        src = str(self.tmp / "in.mp4")
+        _write_video(src, size=(160, 90), duration=0.5)
+        out = str(self.tmp / "progress.mp4")
+        clip = edit.load(src)
+        err = io.StringIO()
+        try:
+            with contextlib.redirect_stderr(err):
+                edit.render(clip, out, fps=10, progress=True, label="test")
+        finally:
+            clip.close()
+        text = err.getvalue()
+        self.assertIn("[test] start", text)
+        self.assertIn("[test] done", text)
+        self.assertTrue(Path(out).exists())
+
+    def test_crop_default_fit_is_cover(self):
+        # 200x100 source, red only in the left 20px. Cover crops to the center
+        # 100px (all blue); stretch would keep the red edge. A 100x200 target
+        # makes this a clean one-pixel check.
+        frame = np.zeros((100, 200, 3), dtype=np.uint8)
+        frame[:, :20] = (255, 0, 0)
+        frame[:, 20:] = (0, 0, 255)
+        clip = ImageClip(frame).with_duration(0.2)
+        try:
+            out = edit.crop(clip, (0, 0, 200, 100), size=(100, 200))
+            self.assertEqual(out.size, (100, 200))
+            self.assertEqual(tuple(out.get_frame(0)[100, 2]), (0, 0, 255))
         finally:
             clip.close()
 

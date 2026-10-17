@@ -56,22 +56,34 @@ Alle Module laufen über **ein** Skript (aus jedem cwd, von der exec-Policy erla
 ```
 ~/.openclaw/workspace-brainrothustler/bin/cli video_generation.cli probe  --in raw.mp4
 ~/.openclaw/workspace-brainrothustler/bin/cli video_generation.cli frames --in raw.mp4 --count 4 --out-dir frames
-~/.openclaw/workspace-brainrothustler/bin/cli video_generation.cli render --recipe recipe.json
+~/.openclaw/workspace-brainrothustler/bin/cli video_generation.cli layout --in raw.mp4 --out clip.mp4 --regions regions.json --size 1080x1920 --progress
+~/.openclaw/workspace-brainrothustler/bin/cli video_generation.cli render --recipe recipe.json --progress
 ```
+`--progress` schreibt Start/Prozent/Ende nach **stderr**, stdout bleibt JSON.
 → `modules/video_generation/README.md`
 
 **yt_clips** — YT-Clip-Art: Zustand, Format, Kandidaten, Clip rendern
 ```
 ~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli next                    # format | clip | find | download
-~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli clip --clip <id> --out out.mp4 --size 1080x1920 --used
+~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli format-set --source <id> --regions fmt.json   # boxes.score = OCR-Box
+~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli candidates-add --source <id> --json cands.json  # {score,pre_roll,post_roll} oder {segments:[...]}
+~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli ocr --clip <id> --step 1   # feste boxes.score, 0.0–10.0
+~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli clip --clip <id> --out out.mp4 --size 1080x1920 --progress --used
 ```
+Segmentkanten (A/B) vorher mit `subtitles.cli snap` auf Satz-/Wortgrenzen legen —
+nie mitten in einen Kommentatorsatz schneiden.
 → `modules/yt_clips/README.md` (Prozess + Vision: Skill `skills/ytclip`)
 
 **subtitles** — Untertitel als eigenes Artefakt: Fenster schneiden + einbrennen
 ```
-~/.openclaw/workspace-brainrothustler/bin/cli subtitles.cli cut  --in transcript.vtt --start 1200 --end 1220 --out clip.srt
+~/.openclaw/workspace-brainrothustler/bin/cli subtitles.cli numbers --in transcript.vtt --min 6 --max 10
+~/.openclaw/workspace-brainrothustler/bin/cli subtitles.cli words  --in transcript.vtt --at 326 --window 3
+~/.openclaw/workspace-brainrothustler/bin/cli subtitles.cli snap   --in transcript.vtt --at 326 --mode sentence --direction before
+~/.openclaw/workspace-brainrothustler/bin/cli subtitles.cli cut  --in transcript.vtt --start 1200 --end 1220 --snap sentence --text --out clip.srt
 ~/.openclaw/workspace-brainrothustler/bin/cli subtitles.cli burn --in clip.mp4 --subs clip.srt --out out.mp4
 ```
+**VTT nie komplett lesen:** `words` (kleines Fenster), `snap` (eine Grenze) und
+`cut --snap sentence` liefern nur das, was der Agent gerade braucht.
 → `modules/subtitles/README.md`
 
 **hosting** — Upload zu Cloudflare R2 → öffentliche URL; Download

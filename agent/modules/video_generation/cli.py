@@ -26,8 +26,8 @@ def _coord(value):
     return s if s == "center" else int(float(s))
 
 
-def _render_and_close(clip, out, sources=()):
-    path = edit.render(clip, out)
+def _render_and_close(clip, out, sources=(), progress=False, label="render"):
+    path = edit.render(clip, out, progress=progress, label=label)
     try:
         clip.close()
     except Exception:
@@ -84,7 +84,7 @@ def main(argv: list[str] | None = None) -> int:
     cr.add_argument("--out", required=True)
     cr.add_argument("--box", required=True, help="x,y,w,h")
     cr.add_argument("--size", default=None, help="optional target WxH")
-    cr.add_argument("--fit", default="stretch", choices=("stretch", "contain", "cover"))
+    cr.add_argument("--fit", default="cover", choices=("cover", "contain", "stretch"))
 
     ly = sub.add_parser("layout", help="compose regions of one clip onto a canvas")
     ly.add_argument("--in", dest="src", required=True)
@@ -95,6 +95,8 @@ def main(argv: list[str] | None = None) -> int:
     ly.add_argument("--background", default=None, help="colour/image/video")
     ly.add_argument("--start", type=float, default=None)
     ly.add_argument("--end", type=float, default=None)
+    ly.add_argument("--progress", action="store_true",
+                   help="render progress to stderr (stdout stays JSON)")
 
     nz = sub.add_parser("noise", help="add film grain / VHS noise")
     nz.add_argument("--in", dest="src", required=True)
@@ -120,6 +122,8 @@ def main(argv: list[str] | None = None) -> int:
     r = sub.add_parser("render", help="render a full video from a JSON recipe")
     r.add_argument("--recipe", required=True, help="path to recipe JSON, or '-' for stdin")
     r.add_argument("--out", default=None, help="override the recipe out path")
+    r.add_argument("--progress", action="store_true",
+                   help="render progress to stderr (stdout stays JSON)")
 
     args = p.parse_args(argv)
 
@@ -169,7 +173,7 @@ def main(argv: list[str] | None = None) -> int:
         src = edit.load(args.src)
         clip = edit.cut(src, args.start or 0.0, args.end) if (args.start or args.end) else src
         res = edit.layout(clip, regions, size, background)
-        out = _render_and_close(res, args.out, [src])
+        out = _render_and_close(res, args.out, [src], args.progress, "layout")
         _dump({"out": out, "regions": len(regions),
                "size": list(edit.parse_size(size))})
     elif args.cmd == "noise":
@@ -193,7 +197,7 @@ def main(argv: list[str] | None = None) -> int:
             recipe = json.loads(Path(args.recipe).read_text(encoding="utf-8"))
         if args.out:
             recipe["out"] = args.out
-        _dump(edit.render_recipe(recipe))
+        _dump(edit.render_recipe(recipe, progress=args.progress))
     return 0
 
 

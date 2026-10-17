@@ -16,6 +16,7 @@ YT-Spezifische steht hier — die Pipeline ist generisch.
 
 - **Ein Format pro Video** (nicht pro Kanal): Scoreboard + Hauptgeschehen werden
   für genau dieses Video bestimmt und für **alle** seine Clips wiederverwendet.
+  Die Score-Box ist **statisch** (Koordinaten fix) — pro Clip kein Re-Detect.
 - Zweistufig: das **Vision-Modell erkennt** die Boxen in 4 Screenshots (nur
   Koordinaten, kein OCR) — das **normale Modell baut daraus zusammen mit dem
   Rezept** das Format: welche Boxen relevant sind, Reihenfolge, 9:16-Mapping.
@@ -52,10 +53,27 @@ YT-Spezifische steht hier — die Pipeline ist generisch.
       Es liefert die **Unterboxen** (Name, Score, Liste …) — Koordinaten **relativ
       zum Crop**. Zurückrechnen mit dem `offset` aus der Ausgabe
       (`unterbox + offset`, bei `--scale` vorher durch den Faktor teilen).
+      Die Unterboxen als **`boxes`** in Quellkoordinaten speichern (`score`,
+      `name`, `list` …). **`boxes.score` ist die Anzeige- UND OCR-Box** — nicht das
+      ganze Scoreboard.
    d. **Format bauen** — mit dem **normalen (Text-)Modell**, **zusammen mit dem
       Rezept**: **welche Boxen relevant sind**, Reihenfolge und 9:16-Mapping stehen
       im Rezept (`## Format`), nicht hier. Jede Region bekommt einen **`name`**
       (z. B. `scoreboard`, `action`) — damit lässt sie sich pro Clip an-/abwählen.
+      - **Score statt Gesamtboard:** Nur die **`score`-Unterbox** rendern (Band
+        oben, volle Breite, Richtwert 200–400 px hoch), **nie `scoreboard` als
+        Ganzes**. `name`/`list` optional als schmale Bänder. Die rohe
+        `boxes.score` (Quellkoordinaten) bleibt für OCR erhalten. Die Box ist
+        pro Video **fix**; pro Clip nur OCR (leer vs. Score), kein Re-Detect.
+      - **Lückenlos:** Die Regionen füllen die Ausgabefläche ohne schwarze Balken
+        (Hauptbox volle Breite, Rest für die Nebenboxen). `fit: cover`, **nicht
+        `stretch`**. Die CLI prüft das bei `format-set`/`clip` und gibt
+        `warnings` zurück (Lücken, Überlauf, `contain`, zu kleine/abgeschnittene
+        Score-Box) — Warnungen ernst nehmen und das Format korrigieren.
+      - **Action-Box:** Der Fahrer/Akteur bleibt in **jedem** geprüften Frame
+        vollständig in der Box, an **jeder Seite ≥ 10 % Rand**. 3–5 Frames aus dem
+        Trick-/Run-Fenster prüfen. Berührt er den Rand → Box **vergrößern** oder
+        **pro Clip** neu erkennen (`format-set --clip`).
    e. Ergebnis speichern (Format = Regions-Liste für `video_generation layout`):
       ```
       ~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli format-set --source <id> --regions fmt.json
@@ -63,18 +81,47 @@ YT-Spezifische steht hier — die Pipeline ist generisch.
 
 ### `find` — clipwürdige Stellen finden
 
-   **Hauptweg — Score-Anker aus dem Transkript:** Die Bewertungen werden angesagt,
-   und an jeder Vergabe ist der Score im Scoreboard sichtbar → **Schnitte am Score
-   setzen**. Zahlen im Transkript suchen; **OCR nur zur Kontrolle** (selten, lokal)
-   auf der Score-Box:
+   **Hauptweg — Score als Such-Anker, Trick als Start-Anker:** Die Bewertung wird
+   angesagt und im Scoreboard angezeigt. Die **Ansage kann 30–60 s nach dem Trick**
+   liegen → **nie als Startanker** nehmen. Erst den **Anzeige-Beginn** bestimmen
+   (Transkript-Zahlen für die Ansage, OCR auf `boxes.score` für die Einblendung),
+   dann das Fenster **rückwärts bis zum Trick-/Run-Beginn** bauen. Zahlen im
+   Transkript:
    ```
    ~/.openclaw/workspace-brainrothustler/bin/cli subtitles.cli numbers --in <transcript.vtt> --min 6 --max 10
    ```
-   Treffer als Kandidaten eintragen, unpassende streichen (`status: Skipped`):
+
+   **Score-Anzeige per OCR (fest, günstig):**
+   ```
+   ~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli ocr --clip <id> --step 1
+   ```
+   Liest die feste `boxes.score` (kein per-Clip-Re-Detect), gibt Werte
+   **0.0–10.0** und `first_stable` (≥ 2 Treffer) + `runs` aus. Leere Frames
+   werden ignoriert. `first_stable` ist der **End-Anker**, nicht die Ansage.
+   Treffer als Kandidaten eintragen — mit **Score-Anker + `pre_roll`** (die CLI
+   rechnet Start/Ende):
+   ```json
+   [{"score": 326.0, "pre_roll": 20, "post_roll": 3, "reason": "Best Trick"}]
+   ```
    ```
    ~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli candidates-add --source <id> --json cands.json
    ```
-   Schnitte nur, wo das **Scoreboard sichtbar** ist.
+   `pre_roll`: Best Trick **≥ 10 s** (besser 15), Lines = **Run-Länge**. Die CLI
+   warnt bei `pre_roll < 8 s` („nur Feier") und bei Fenstern < 5 s. Unpassende
+   streichen (`status: Skipped`). Schnitte nur, wo das **Scoreboard sichtbar** ist.
+
+   **A oder B:** Reicht ein Fenster nicht (der Score kommt später), zwei
+   Segmente — Trick + Score:
+   ```json
+   [{"segments": [{"start": 305, "end": 316}, {"start": 324, "end": 330}],
+     "reason": "Trick + Score"}]
+   ```
+   `clip` rendert die Segmente einzeln und hängt sie **hart** aneinander;
+   `only`/`drop` pro Segment überschreiben die globale Auswahl.
+   **Schnittkanten:** Beide Segmentkanten vorher mit `subtitles.cli snap` auf
+   Satz-/Wortgrenzen legen (Start `before`, Ende `after`) — Trick-Fenster endet
+   nach der Landung, Score-Fenster beginnt vor der Einblendung. **Nie mitten in
+   einen Kommentatorsatz schneiden**, auch nicht am Übergang Trick → Score.
 
    **Zusatzsignal (optional, kostenlos): Kapitel + Audio-Peaks** — laut = Jubel/
    Kommentator. Als günstige Vorauswahl ergänzend zum Score nutzen; kein
@@ -105,8 +152,12 @@ YT-Spezifische steht hier — die Pipeline ist generisch.
      ```
      `--only a,b` / `--drop a,b` filtern die benannten Regionen. Der
      **Score-Bereich** wird erstmal **immer** mitgezeigt (Rezept kann das ändern).
+   - **`warnings` prüfen:** Die Ausgabe meldet Lücken/Überlauf im Layout. Bei
+     einer Lücke zuerst das Format korrigieren (nicht den Clip als fertig
+     ansehen).
    - **Fallback:** passt kein bekanntes Layout (Studio/Halbzeit) → 4 Frames **aus
-     dem Clip** → wie unter `format` neu erkennen → per Clip speichern:
+     dem Clip** → wie unter `format` neu erkennen → per Clip speichern. Nur bei
+     echtem Layout-Wechsel, **nicht fürs Scoreboard** (die Box ist fix):
      `~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli format-set --clip <id> --regions fmt.json`
      (überschreibt die Quelle).
 
@@ -128,13 +179,20 @@ YT-Spezifische steht hier — die Pipeline ist generisch.
 ### Untertitel (falls das Rezept sie will)
 
    **Nach dem Rendern.** Transcript-Pfad steht in `next`/`list` (`subs_path`).
-   Untertitel bleiben ein eigenes Artefakt — Fenster schneiden, dann einbrennen:
+   Untertitel bleiben ein eigenes Artefakt — Fenster schneiden (an der
+   **Satzgrenze**), dann einbrennen:
    ```
-   ~/.openclaw/workspace-brainrothustler/bin/cli subtitles.cli cut  --in <transcript.vtt> --start <start> --end <end> --out clip.srt
+   ~/.openclaw/workspace-brainrothustler/bin/cli subtitles.cli cut  --in <transcript.vtt> --start <start> --end <end> --snap sentence --text --out clip.srt
    ~/.openclaw/workspace-brainrothustler/bin/cli subtitles.cli burn --in out.mp4 --subs clip.srt --out final.mp4 \
        --font-size 64 --margin-v 220 --outline 3
    ```
-   Denselben Text auch für **Titel/Beschreibung/Hashtags** nutzen (Trick, Skater).
+   Denselben Text (`text` aus `cut`) für **Titel/Beschreibung/Hashtags** nutzen
+   (Trick, Skater).
+
+   **Token-Regel:** Das VTT **nie** komplett lesen. `cut --snap sentence` liefert
+   nur die angepassten Zeiten + kurzen Text. Für einen unklaren Moment:
+   `subtitles.cli words --at <t> --window 3` (nur ~10–30 Wörter). `snap` für eine
+   einzelne Grenze. Alles andere bleibt in der Datei.
 
 ## Übergabe an die Pipeline
 

@@ -16,8 +16,9 @@ Bewertung.
   keine harte Grenze): Ansage „lines"/„run" im Transkript oder Text im Bild,
   gefolgt von mehreren **kompletten Runs** (mehrere Scores hintereinander). Der
   Best-Trick-Block beginnt erst mit der Ansage „best trick"/„best trick time".
-- **Schnitt-Anker: der Score.** Die Bewertung wird angesagt → Transkript-Zahlen
-  (`subtitles numbers`); an jeder Vergabe ist der Score auch im Scoreboard sichtbar.
+- **Such-Anker: der Score.** Die Bewertung wird angesagt → Transkript-Zahlen
+  (`subtitles numbers`) und im Scoreboard angezeigt (OCR). **Start-Anker ist der
+  Run-Beginn**, nicht die Ansage.
 - Ein Run dauert **typisch ≥ 45 s**, plus **~15 s bis zur Bewertung**.
   **Sturz → der Run ist kurz:** dann **keine Mindestlänge erzwingen** — die
   Score-Grenzen begrenzen den Run von selbst (zwischen zwei Scores = ein Run).
@@ -26,14 +27,28 @@ Bewertung.
 
 ## Format
 - **Relevante Boxen** — Vision *erkennt*, das Text-Modell *wählt* anhand dieser Liste:
-  - `Scoreboard` · **optional** (Region-Name `scoreboard`) — rechteckiger Kasten,
-    geteilt in: Werbung, Name des aktuellen Skaters, Logo, Score, Liste anderer
-    Skater, Informationsblock. _Nur ~30 % der Zeit da._
+  - `Scoreboard` · **optional** — nur der Container; **nicht als Ganzes rendern**.
+    Unterboxen: `score` (Zahlenkasten), `name` (Skater), `list` (Rangliste),
+    Werbung/Logo/Info (ignorieren). _Nur ~30 % der Zeit da._
+  - `score` · **required, wenn das Scoreboard sichtbar ist** (Region-Name `score`) —
+    genau der Kasten mit dem **tatsächlichen Score**. Er wird angezeigt **und** ist
+    die **OCR-Box** (Quellkoordinaten in `boxes.score` speichern), nicht das Board.
+    Die Box ist **statisch pro Video** — kein per-Clip-Re-Detect; pro Clip nur OCR
+    (leer vs. Score).
+  - `name` / `list` · **optional** — nur wenn Platz; schmale Bänder.
   - `Action-Bereich` · **required** (Region-Name `action`) — wo sich der Fahrer
-    aufhält; Höhe > Breite, Höhe ≥ ½ Originalhöhe (nicht reinzoomen).
-- **Aufteilung 9:16:** Action unten auf Breite setzen, freien Platz mit den
-  restlichen Boxen füllen; ohne Platz: über/unter dem Action-Bereich, möglichst
-  wenig Relevantes abschneiden. Gezeigt werden: Name, Score, Liste.
+    aufhält; Höhe > Breite, Höhe ≥ ½ Originalhöhe — lieber **größer** als
+    reinzoomen.
+- **Aufteilung 9:16 — lückenlos:** `score` als Band **oben auf volle Breite
+  (1080 px)**, Richtwert **300 px hoch** (200–400; Ziffern vollständig lesbar, nicht
+  abgeschnitten), `fit: cover`. Action darunter, füllt den **Rest bis 1920** — keine
+  Lücke. Mit `name`/`list`: je ein schmales Band (120–180 px), Action entsprechend
+  kleiner. `fit` immer **`cover`**, **nie `stretch`**.
+- **Action-Box — der Fahrer bleibt drin:** Die Box zeigt den **ganzen** Run. Der
+  Fahrer darf den Rand **nie berühren oder verlassen**: an **jeder Seite ≥ 10 %
+  Rand** (bei 1080 px Ausgabebreite ≥ 110 px). Im Zweifel Box **vergrößern** statt
+  reinzoomen. 3–5 Frames aus dem Run prüfen; passt es nicht → Box **pro Clip** neu
+  setzen (`format-set --clip`).
 - **Fallback ohne Scoreboard:** nur `action`, füllt das Bild.
 - **Nicht relevant / ignorieren:** Werbung, Logo, Informationsblock.
 - Ausgabe: 9:16, Höhe ≥ 1280.
@@ -41,10 +56,29 @@ Bewertung.
 ## Clips
 - **Länge:** der ganze Run bis zur Bewertung (**typisch ≥ 60 s**, Score am Ende).
   **Keine harte Mindestlänge** — nach einem Sturz ist der Run kurz.
-- **Anker:** Score. **Offset-Tendenz: eher später** (langer Run davor, Score am
-  Ende des Clips).
+- **A oder B:**
+  - **A — ein Fenster:** Score-Einblendung direkt am Run-Ende → ganzer Run in
+    einem Fenster.
+  - **B — zwei Fenster:** Score kommt deutlich später → **Run-Fenster** +
+    **Score-Fenster** (1 s vor der Einblendung bis 2–4 s danach), **hart
+    aneinander** (kein Übergang). Beide Kanten mit `subtitles.cli snap` auf
+    **Satz-/Wortgrenzen** legen: Run-Fenster endet an der Satzgrenze **nach dem
+    Run**, Score-Fenster beginnt an der Satzgrenze **vor der Einblendung**.
+    **Nie mitten in einen Kommentatorsatz schneiden** — auch nicht am Übergang
+    Run → Score.
+- **Start-Anker = Run-Beginn**: Start beim Anlauf/ersten Trick, die
+  Score-Einblendung ist der End-Anker (**2–4 s danach** enden). Die **Ansage** ist
+  kein Startanker — sie kann **deutlich später** liegen; ein Start danach zeigt
+  nur die Feier.
+- **Prüfen:** Der erste Frame zeigt den **laufenden Run**, nicht Jubel, Replay
+  oder Standbild.
 - **Score:** **> 8** (darunter → Kandidat `Skipped`).
 - **Schnitte nur, wo das Scoreboard sichtbar ist.**
+- **Score-Anzeige:** per OCR auf der festen `boxes.score`
+  (`yt_clips.cli ocr --clip <id> --step 1`); erster **stabiler** Treffer
+  (0.0–10.0) = End-Anker, nicht die Ansage.
+- **Satzgrenzen:** an Satz-/Pausengrenze schneiden (`subtitles.cli cut --snap
+  sentence`), nicht mitten in den Kommentar.
 - **Anzeige:** Score-Bereich **immer** mitzeigen (erstmal).
 - Ein Clip pro Run.
 

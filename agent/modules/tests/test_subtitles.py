@@ -37,6 +37,15 @@ hi there
 second half
 """
 
+WORD_VTT = """WEBVTT
+
+00:00:01.000 --> 00:00:04.000 align:start position:10%
+hello<00:00:01.500><c> world</c><00:00:02.200><c> again.</c>
+
+00:00:04.500 --> 00:00:06.000
+new<00:00:04.600><c> sentence</c>
+"""
+
 
 class ParseTest(unittest.TestCase):
     def test_parse_srt_strips_tags(self):
@@ -80,6 +89,46 @@ class WindowTest(unittest.TestCase):
         text = subs.to_srt([{"start": 0.0, "end": 1.5, "text": "a"}])
         self.assertIn("00:00:00,000 --> 00:00:01,500", text)
         self.assertTrue(text.startswith("1\n"))
+
+
+class WordsTest(unittest.TestCase):
+    def test_words_from_inline_tags(self):
+        got = subs.words(subs.parse(WORD_VTT))
+        self.assertEqual([w["word"] for w in got],
+                         ["hello", "world", "again.", "new", "sentence"])
+        self.assertAlmostEqual(got[0]["start"], 1.0, places=3)
+        self.assertAlmostEqual(got[1]["start"], 1.5, places=3)
+        self.assertAlmostEqual(got[2]["start"], 2.2, places=3)
+        self.assertNotIn("approx", got[0])
+
+    def test_words_fallback_is_approx(self):
+        got = subs.words(subs.parse(VTT))
+        self.assertTrue(got)
+        self.assertTrue(all(w.get("approx") for w in got))
+
+    def test_sentences_split_on_punctuation(self):
+        got = subs.sentences(subs.words(subs.parse(WORD_VTT)))
+        self.assertEqual(len(got), 2)
+        self.assertEqual(got[0]["text"], "hello world again.")
+        self.assertAlmostEqual(got[0]["start"], 1.0, places=3)
+        self.assertAlmostEqual(got[0]["end"], 4.0, places=3)
+
+    def test_snap_before_after_and_word(self):
+        words = subs.words(subs.parse(WORD_VTT))
+        before = subs.snap(2.3, words, mode="sentence", direction="before")
+        self.assertEqual(before["snapped"], 1.0)
+        self.assertEqual(before["text"], "hello world again.")
+        after = subs.snap(2.3, words, mode="sentence", direction="after")
+        self.assertEqual(after["snapped"], 4.0)
+        word = subs.snap(2.3, words, mode="word", direction="before")
+        self.assertEqual(word["snapped"], 2.2)
+
+    def test_window_words_is_small(self):
+        words = subs.words(subs.parse(WORD_VTT))
+        got = subs.window_words(words, 2.0, seconds=0.3)
+        self.assertEqual([w["word"] for w in got], ["world", "again."])
+        self.assertLessEqual(len(subs.window_words(words, 2.0, seconds=100,
+                                                   limit=2)), 2)
 
 
 class NumbersTest(unittest.TestCase):

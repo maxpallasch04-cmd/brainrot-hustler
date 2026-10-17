@@ -49,11 +49,12 @@ def _cue_from_block(lines: list[str]) -> dict | None:
         end = _parse_ts(right.strip().split()[0])
     except (IndexError, ValueError):
         return None
+    raw = " ".join(lines[arrow + 1:]).strip()
     text = " ".join(TAG_RE.sub("", line) for line in lines[arrow + 1:])
     text = WS_RE.sub(" ", text).strip()
     if not text:
         return None
-    return {"start": start, "end": end, "text": text}
+    return {"start": start, "end": end, "text": text, "raw": raw}
 
 
 def parse(text: str) -> list[dict]:
@@ -105,6 +106,125 @@ def _spoken_value(match: re.Match) -> float | None:
     parts = re.findall(_WORD, match.group(2))
     digits = "".join(str(_WORDS[p]) for p in parts if _WORDS[p] < 10)
     return whole + float("0." + digits) if digits else None
+
+
+# ---- words (lazy, query-only) ------------------------------------------
+
+INLINE_TS_RE = re.compile(r"<(\d{1,2}:\d{2}:\d{2}[.,]\d{3})>")
+_SENT_END_RE = re.compile(r"[.!?…]['\")\]]*$")
+
+
+def words(cues) -> list[dict]:
+    """Word-level timings from cues, using YouTube inline ``<HH:MM:SS.mmm>`` tags.
+
+    Returns ``[{'start', 'end', 'word', 'cue'}]``. Without inline tags the cue
+    text is split into words with cue-level times and ``approx: True`` — the
+    caller can then decide whether that precision is enough.
+    """
+    out: list[dict] = []
+    for ci, cue in enumerate(cues):
+        raw = cue.get("raw") or cue["text"]
+        matches = list(INLINE_TS_RE.finditer(raw))
+        if not matches:
+            for token in cue["text"].split():
+                out.append({"start": cue["start"], "end": cue["end"],
+                            "word": token, "cue": ci, "approx": True})
+            continue
+
+        # Segments: (start, text) — text before the first tag belongs to cue start.
+        segments: list[tuple[float, str]] = []
+        pos = 0
+        for i, match in enumerate(matches):
+            if match.start() > pos:
+                segments.append((cue["start"], raw[pos:match.start()]))
+            start = _parse_ts(match.group(1))
+            end = matches[i + 1].start() if i + 1 < len(matches) else len(raw)
+            segments.append((start, raw[match.end():end]))
+            pos = end
+
+        for si, (seg_start, chunk) in enumerate(segments):
+            chunk = WS_RE.sub(" ", TAG_RE.sub("", chunk)).strip()
+            if not chunk:
+                continue
+            seg_end = segments[si + 1][0] if si + 1 < len(segments) else cue["end"]
+            tokens = chunk.split()
+            step = max(0.0, seg_end - seg_start) / len(tokens)
+            for wi, token in enumerate(tokens):
+                ws = seg_start + wi * step
+                we = seg_start + (wi + 1) * step if len(tokens) > 1 else seg_end
+                out.append({"start": round(ws, 3), "end": round(we, 3),
+                            "word": token, "cue": ci})
+    return out
+
+
+def sentences(words_list, *, pause: float = 0.6) -> list[dict]:
+    """Group words into sentences: punctuation or a pause between words."""
+    out: list[dict] = []
+    current: list[dict] = []
+    for i, word in enumerate(words_list):
+        current.append(word)
+        nxt = words_list[i + 1] if i + 1 < len(words_list) else None
+        break_here = (nxt is None
+                      or _SENT_END_RE.search(word["word"]) is not None
+                      or nxt["start"] - word["end"] >= float(pause))
+        if break_here:
+            out.append({"start": current[0]["start"], "end": current[-1]["end"],
+                        "text": " ".join(w["word"] for w in current),
+                        "words": current})
+            current = []
+    return out
+
+
+def window_words(words_list, at: float, *, seconds: float = 3.0,
+                 limit: int = 60) -> list[dict]:
+    """Only the words around ``at`` (bounded by time and count) — token-cheap."""
+    lo, hi = float(at) - float(seconds), float(at) + float(seconds)
+    got = [w for w in words_list if w["end"] >= lo and w["start"] <= hi]
+    return got[:max(1, int(limit))]
+
+
+def snap(at: float, words_list, *, mode: str = "sentence",
+         direction: str = "nearest", pause: float = 0.6) -> dict:
+    """Nearest word/sentence boundary to ``at``.
+
+    ``direction``: before (start <= at), after (end >= at), nearest.
+    For sentences, a boundary is a sentence start (before) or sentence end
+    (after); the returned ``text`` is that sentence.
+    """
+    at = float(at)
+    if mode == "sentence":
+        units = sentences(words_list, pause=pause)
+        starts = [(u["start"], u) for u in units]
+        ends = [(u["end"], u) for u in units]
+    elif mode == "word":
+        units = list(words_list)
+        starts = [(u["start"], u) for u in units]
+        ends = [(u["end"], u) for u in units]
+    else:
+        raise ValueError("mode must be 'sentence' or 'word'")
+
+    candidates: list[tuple[float, dict, str]] = []
+    if direction in ("before", "nearest"):
+        before = [(t, u) for t, u in starts if t <= at]
+        if before:
+            t, u = max(before, key=lambda x: x[0])
+            candidates.append((t, u, "before"))
+    if direction in ("after", "nearest"):
+        after = [(t, u) for t, u in ends if t >= at]
+        if after:
+            t, u = min(after, key=lambda x: x[0])
+            candidates.append((t, u, "after"))
+    if direction not in ("before", "after", "nearest"):
+        raise ValueError("direction must be before/after/nearest")
+    if not candidates:
+        return {"at": at, "snapped": at, "delta": 0.0, "direction": direction,
+                "mode": mode, "text": None}
+    t, unit, used = min(candidates, key=lambda x: abs(x[0] - at))
+    if direction != "nearest":
+        used = direction
+    return {"at": at, "snapped": round(t, 3), "delta": round(t - at, 3),
+            "direction": used, "mode": mode,
+            "text": unit.get("text") or unit.get("word")}
 
 
 def find_numbers(cues, *, lo: float | None = None, hi: float | None = None) -> list[dict]:

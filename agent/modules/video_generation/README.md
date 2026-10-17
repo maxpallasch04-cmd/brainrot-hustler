@@ -45,7 +45,8 @@ Funktionen: `cut`, `crop`, `contain`, `cover`, `on_background`, `compose`, `layo
 `render_recipe`, `parse_size`, `parse_box`, `parse_color`. `background` ist `None`
 (schwarz), eine Farbe (`#111` / `black` / `[r,g,b]`), ein Bild oder ein Video
 (geloopt). `x`/`y` akzeptieren Pixel oder `"center"`. `crop` clamp't die Box aufs
-Bild; `fit` ist `stretch` (exakt), `contain` (einpassen) oder `cover` (füllen).
+Bild; `fit` ist `cover` (Default; füllt, behält das Seitenverhältnis), `contain`
+(einpassen) oder `stretch` (exakt, verzerrt).
 
 ## Rezept (ein JSON → ein Video)
 
@@ -83,9 +84,9 @@ Form (Datei oder `-` für stdin). `clips[]` werden in Reihenfolge verkettet.
 
 - `regions[]` (optional, pro Clip): Ausschnitte **derselben** Quelle auf die
   Fläche legen (Scoreboard + Hauptgeschehen). Felder: `box` `[x,y,w,h]`,
-  `size` `[w,h]`, `fit` (`stretch`/`contain`/`cover`), `position` (`[x,y]` oder
-  `"center"`), optional `start`/`duration`/`opacity`. Ohne `regions` gilt wie
-  bisher `background`/`margin` (Clip einpassen).
+  `size` `[w,h]`, `fit` (`cover` (Default)/`contain`/`stretch`), `position` (`[x,y]` oder
+  `"center"`), optional `start`/`duration`/`opacity` (`0..1`; `1.0` = voll deckend,
+  kein Alpha). Ohne `regions` gilt wie bisher `background`/`margin` (Clip einpassen).
 
 - `overlays[]`: ab `start` für `duration` gezeigt (Standard: Rest des Clips).
 - `noise`: `true`, eine Zahl (Stärke) oder `{amount, mode, monochrome, seed}` —
@@ -105,11 +106,13 @@ Form (Datei oder `-` für stdin). `clips[]` werden in Reihenfolge verkettet.
 ~/.openclaw/workspace-brainrothustler/bin/cli video_generation.cli background --in cut.mp4 --out bg.mp4 --size 1080x1920 --bg "#101010"
 ~/.openclaw/workspace-brainrothustler/bin/cli video_generation.cli overlay    --in bg.mp4  --out ov.mp4 --image logo.png --x 40 --y 80 --start 0.5 --duration 3
 ~/.openclaw/workspace-brainrothustler/bin/cli video_generation.cli crop       --in raw.mp4 --out r.mp4 --box 300,300,1400,800 --size 1080x800 --fit cover
-~/.openclaw/workspace-brainrothustler/bin/cli video_generation.cli layout     --in match.mp4 --out clip.mp4 --regions regions.json --size 1080x1920 --start 1200 --end 1235
+~/.openclaw/workspace-brainrothustler/bin/cli video_generation.cli layout     --in match.mp4 --out clip.mp4 --regions regions.json --size 1080x1920 --start 1200 --end 1235 --progress
 ~/.openclaw/workspace-brainrothustler/bin/cli video_generation.cli noise      --in ov.mp4  --out gr.mp4 --amount 0.08 --mode vhs
 ~/.openclaw/workspace-brainrothustler/bin/cli video_generation.cli audio      --in ov.mp4  --out au.mp4 --audio sfx.mp3 --start 1.0 --volume 0.8
 ~/.openclaw/workspace-brainrothustler/bin/cli video_generation.cli concat     a.mp4 b.mp4 --out merged.mp4
-~/.openclaw/workspace-brainrothustler/bin/cli video_generation.cli render     --recipe recipe.json
+~/.openclaw/workspace-brainrothustler/bin/cli video_generation.cli render     --recipe recipe.json --progress
 ```
 
-Alle Befehle geben JSON aus.
+Alle Befehle geben JSON aus. `--progress` schreibt Start/Prozent/Ende nach
+**stderr** — stdout bleibt reines JSON, lange Renders sehen nicht mehr wie
+"hängt" aus.

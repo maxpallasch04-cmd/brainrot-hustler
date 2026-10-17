@@ -37,6 +37,12 @@ def main(argv: list[str] | None = None) -> int:
     c.add_argument("--no-offset", action="store_true",
                    help="keep absolute timestamps (default: shift to clip-relative)")
     c.add_argument("--no-clean", action="store_true", help="keep rolling duplicates")
+    c.add_argument("--snap", choices=("sentence", "word"), default=None,
+                   help="snap start/end outward to the nearest boundary")
+    c.add_argument("--pause", type=float, default=0.6,
+                   help="pause in seconds that ends a sentence (default 0.6)")
+    c.add_argument("--text", action="store_true",
+                   help="include the clip text (short, for titles)")
 
     b = sub.add_parser("burn", help="hardsub a video (ffmpeg + libass)")
     b.add_argument("--in", dest="src", required=True, help="video")
@@ -56,6 +62,20 @@ def main(argv: list[str] | None = None) -> int:
     n.add_argument("--min", type=float, default=None, help="keep values above this")
     n.add_argument("--max", type=float, default=None, help="keep values below this")
 
+    w = sub.add_parser("words", help="word timings around one time (small window)")
+    w.add_argument("--in", dest="src", required=True, help=".vtt or .srt")
+    w.add_argument("--at", type=float, required=True)
+    w.add_argument("--window", type=float, default=3.0, help="seconds before/after")
+    w.add_argument("--limit", type=int, default=60, help="max words returned")
+
+    s = sub.add_parser("snap", help="nearest word/sentence boundary")
+    s.add_argument("--in", dest="src", required=True, help=".vtt or .srt")
+    s.add_argument("--at", type=float, required=True)
+    s.add_argument("--mode", choices=("sentence", "word"), default="sentence")
+    s.add_argument("--direction", choices=("before", "after", "nearest"),
+                   default="nearest")
+    s.add_argument("--pause", type=float, default=0.6)
+
     args = p.parse_args(argv)
 
     if args.cmd == "info":
@@ -66,12 +86,32 @@ def main(argv: list[str] | None = None) -> int:
         cues = subs.load(args.src)
         if not args.no_clean:
             cues = subs.dedupe(cues)
-        window = subs.window(cues, args.start, args.end, offset=not args.no_offset)
+        start, end = args.start, args.end
+        snapped = None
+        if args.snap:
+            word_list = subs.words(cues)
+            s = subs.snap(start, word_list, mode=args.snap, direction="before",
+                          pause=args.pause)
+            if s["text"] is not None:
+                start = s["snapped"]
+            if end is not None:
+                e = subs.snap(end, word_list, mode=args.snap, direction="after",
+                              pause=args.pause)
+                if e["text"] is not None:
+                    end = e["snapped"]
+            snapped = {"start": start, "end": end}
+        window = subs.window(cues, start, end, offset=not args.no_offset)
         if not window:
-            raise SystemExit(f"no cues in {args.start}..{args.end}")
+            raise SystemExit(f"no cues in {start}..{end}")
         path = subs.write_srt(window, args.out)
-        _dump({"out": path, "cues": len(window), "start": args.start, "end": args.end,
-               "offset": not args.no_offset})
+        out = {"out": path, "cues": len(window), "start": start, "end": end,
+               "offset": not args.no_offset}
+        if snapped:
+            out["requested"] = {"start": args.start, "end": args.end}
+            out["snapped"] = snapped
+        if args.text:
+            out["text"] = " ".join(c["text"] for c in window)[:400]
+        _dump(out)
     elif args.cmd == "burn":
         style = args.style or subs.build_style(
             font=args.font, font_size=args.font_size, outline=args.outline,
@@ -82,6 +122,18 @@ def main(argv: list[str] | None = None) -> int:
     elif args.cmd == "numbers":
         hits = subs.find_numbers(subs.load(args.src), lo=args.min, hi=args.max)
         _dump({"path": args.src, "count": len(hits), "hits": hits})
+    elif args.cmd == "words":
+        cues = subs.dedupe(subs.load(args.src))
+        word_list = subs.words(cues)
+        selected = subs.window_words(word_list, args.at, seconds=args.window,
+                                     limit=args.limit)
+        _dump({"at": args.at, "window": args.window, "count": len(selected),
+               "approx": any(w.get("approx") for w in selected),
+               "words": selected})
+    elif args.cmd == "snap":
+        cues = subs.dedupe(subs.load(args.src))
+        _dump(subs.snap(args.at, subs.words(cues), mode=args.mode,
+                        direction=args.direction, pause=args.pause))
     return 0
 
 

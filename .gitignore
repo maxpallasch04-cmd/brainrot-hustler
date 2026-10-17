@@ -9,6 +9,7 @@ venv/
 # Secrets & runtime data (never commit)
 agent/modules/data/tiktok_token.json
 agent/modules/data/*.db
+TODO.md
 *.token.json
 .env
 .env.*

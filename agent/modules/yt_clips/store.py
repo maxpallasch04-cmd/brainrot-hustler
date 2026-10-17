@@ -51,6 +51,7 @@ CREATE TABLE IF NOT EXISTS yt_clip (
     status     TEXT    NOT NULL DEFAULT 'Candidate',
     video_id   INTEGER,
     format_json TEXT,
+    segments_json TEXT,
     created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_yt_clip_status ON yt_clip (status);
@@ -70,6 +71,8 @@ def _migrate(conn: sqlite3.Connection) -> None:
     clip_cols = {row["name"] for row in conn.execute("PRAGMA table_info(yt_clip)")}
     if "format_json" not in clip_cols:
         conn.execute("ALTER TABLE yt_clip ADD COLUMN format_json TEXT")
+    if "segments_json" not in clip_cols:
+        conn.execute("ALTER TABLE yt_clip ADD COLUMN segments_json TEXT")
     conn.commit()
 
 
@@ -181,18 +184,40 @@ class Store:
     # ---- clips ----------------------------------------------------------
 
     def add_candidates(self, source_id: int, items) -> list[int]:
-        """Insert candidate clip windows: ``[{'start', 'end', 'reason'}]``."""
+        """Insert candidates: ``[{'start', 'end', 'reason'}]`` or a ``segments`` list.
+
+        ``segments`` (two windows that get concatenated, e.g. trick + score) are
+        stored verbatim; the row's ``start_s``/``end_s`` span the whole composite
+        so the existing queue/list logic keeps working.
+        """
         if self.get_source(source_id) is None:
             raise KeyError(f"source {source_id} not found")
         ids = []
         for item in items:
-            start, end = float(item["start"]), float(item["end"])
-            if end <= start:
-                raise ValueError(f"clip end must be after start ({start}..{end})")
+            segments = item.get("segments")
+            if segments:
+                segs = []
+                for seg in segments:
+                    s, e = float(seg["start"]), float(seg["end"])
+                    if e <= s:
+                        raise ValueError(f"segment end must be after start ({s}..{e})")
+                    row = {"start": s, "end": e}
+                    for key in ("only", "drop", "reason"):
+                        if seg.get(key) is not None:
+                            row[key] = seg[key]
+                    segs.append(row)
+                start, end = min(s["start"] for s in segs), max(s["end"] for s in segs)
+                segments_json = json.dumps(segs, ensure_ascii=False)
+            else:
+                start, end = float(item["start"]), float(item["end"])
+                if end <= start:
+                    raise ValueError(f"clip end must be after start ({start}..{end})")
+                segments_json = None
             cur = self.conn.execute(
-                "INSERT INTO yt_clip (source_id, start_s, end_s, reason, created_at) "
-                "VALUES (?, ?, ?, ?, ?)",
-                (int(source_id), start, end, str(item.get("reason", "")), _now()))
+                "INSERT INTO yt_clip (source_id, start_s, end_s, reason, segments_json, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (int(source_id), start, end, str(item.get("reason", "")),
+                 segments_json, _now()))
             ids.append(int(cur.lastrowid))
         self.conn.commit()
         return ids

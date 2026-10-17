@@ -13,6 +13,8 @@ moviepy>=2.0,<3          # video_generation, yt_clips (Schnitt)
 numpy>=1.26              # video_generation, yt_clips, subtitles
 Pillow>=10               # video_generation, yt_clips (Crops/Thumbnails)
 imageio-ffmpeg>=0.4.9    # subtitles (liefert das ffmpeg-Binary mit)
+# yt_clips OCR braucht das **Tesseract-Binary** (TESSERACT_CMD oder PATH),
+# kein Python-Paket. Optionaler Fallback: rapidocr-onnxruntime.
 
 # Optional, nur für die Tests (laufen sonst mit stdlib unittest):
 # pytest>=8

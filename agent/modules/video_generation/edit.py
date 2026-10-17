@@ -7,6 +7,8 @@ pipeline from a plain dict (see README).
 
 from __future__ import annotations
 
+import sys
+import time
 from pathlib import Path
 
 import numpy as np
@@ -21,6 +23,7 @@ from moviepy import (
     concatenate_videoclips,
 )
 from moviepy.video.fx import Loop
+from proglog import ProgressBarLogger
 
 DEFAULT_SIZE = (1080, 1920)  # 9:16
 DEFAULT_FPS = 30
@@ -206,11 +209,20 @@ def on_background(clip, size=DEFAULT_SIZE, background=None, margin: int = 0,
     return CompositeVideoClip([bg, fg.with_position(pos)], size=(w, h))
 
 
+def _opacity(value) -> float:
+    """Validate an opacity factor: 0..1, with 1.0 meaning fully opaque (no mask)."""
+    op = float(value)
+    if not 0.0 <= op <= 1.0:
+        raise ValueError(f"opacity must be within 0..1 — got {value!r}")
+    return op
+
+
 def overlay(video, image, x=0, y=0, start: float = 0.0, duration: float | None = None,
             size=None, opacity: float = 1.0):
     """Overlay an image (path or ImageClip) at (x, y) from `start` for `duration`.
 
     `x`/`y` may be pixel ints or 'center'. `size` is an optional 'WxH' target.
+    `opacity` is 0..1; 1.0 is a no-op (no alpha mask).
     """
     ov = ImageClip(str(image)) if isinstance(image, (str, Path)) else image
     if size is not None:
@@ -218,20 +230,22 @@ def overlay(video, image, x=0, y=0, start: float = 0.0, duration: float | None =
     if duration is None:
         duration = max(0.05, video.duration - float(start))
     ov = ov.with_start(float(start)).with_duration(float(duration))
+    opacity = _opacity(opacity)
     if opacity != 1.0:
-        ov = ov.with_opacity(float(opacity))
+        ov = ov.with_opacity(opacity)
     return CompositeVideoClip([video, ov.with_position(_xy(x, y, video.size, ov.size))],
                               size=video.size)
 
 
 # ---- crop / layout ------------------------------------------------------
 
-def crop(clip, box, *, size=None, fit: str = "stretch"):
+def crop(clip, box, *, size=None, fit: str = "cover"):
     """Cut a rectangular region out of `clip`.
 
     `box` is (x, y, w, h) — clamped to the frame. `size` optionally rescales the
-    region: 'stretch' (exact target), 'contain' (fit inside, keep aspect) or
-    'cover' (fill, keep aspect, center-crop). Returns a view of `clip`.
+    region: 'cover' (default; fill, keep aspect, center-crop), 'contain' (fit
+    inside, keep aspect) or 'stretch' (exact target, distorts). Returns a view of
+    `clip`.
     """
     x, y, w, h = parse_box(box)
     cw, ch = clip.size
@@ -284,7 +298,7 @@ def compose(size=DEFAULT_SIZE, layers=(), *, background=None, duration=None):
             raise ValueError("compose layers need a 'clip'")
         if layer.get("box") is not None:
             clip = crop(clip, layer["box"], size=layer.get("size"),
-                        fit=layer.get("fit", "stretch"))
+                        fit=layer.get("fit", "cover"))
         elif layer.get("size") is not None:
             clip = _fit(clip, layer["size"], layer.get("fit", "contain"))
         start = float(layer.get("start", 0.0))
@@ -300,8 +314,9 @@ def compose(size=DEFAULT_SIZE, layers=(), *, background=None, duration=None):
             pos = (float(pos[0]), float(pos[1]))
         else:
             raise ValueError(f"position must be 'center' or [x, y] — got {pos!r}")
-        if float(layer.get("opacity", 1.0)) != 1.0:
-            clip = clip.with_opacity(float(layer["opacity"]))
+        opacity = _opacity(layer.get("opacity", 1.0))
+        if opacity != 1.0:
+            clip = clip.with_opacity(opacity)
         built.append(clip.with_position(tuple(pos)))
     return CompositeVideoClip([bg, *built], size=(w, h))
 
@@ -395,12 +410,55 @@ def concat(clips, transition: float | None = None):
 
 # ---- render -------------------------------------------------------------
 
-def render(clip, out, fps: int = DEFAULT_FPS, verbose: bool = False) -> str:
-    """Write `clip` to `out` as H.264/AAC mp4. Returns the output path."""
+class StderrProgress(ProgressBarLogger):
+    """Plain-text render progress on stderr — one line every `interval` seconds.
+
+    stdout stays clean (JSON); progress goes to stderr so a long render is
+    visible instead of looking hung.
+    """
+
+    def __init__(self, label: str = "render", interval: float = 5.0, stream=None):
+        super().__init__()
+        self.label = label
+        self.interval = float(interval)
+        self.stream = stream or sys.stderr
+        self._last = 0.0
+
+    def bars_callback(self, bar, attr, value, old_value=None):
+        if attr != "index":
+            return
+        total = self.bars.get(bar, {}).get("total")
+        if not total:
+            return
+        now = time.monotonic()
+        if value < total and now - self._last < self.interval:
+            return
+        self._last = now
+        pct = 100.0 * float(value) / float(total)
+        print(f"[{self.label}] {pct:5.1f}% ({value}/{total})",
+              file=self.stream, flush=True)
+
+
+def render(clip, out, fps: int = DEFAULT_FPS, verbose: bool = False,
+           progress: bool = False, label: str = "render") -> str:
+    """Write `clip` to `out` as H.264/AAC mp4. Returns the output path.
+
+    `progress` writes start/percent/done lines to **stderr** (stdout stays JSON).
+    """
     out = str(out)
     Path(out).parent.mkdir(parents=True, exist_ok=True)
-    clip.write_videofile(out, fps=int(fps), codec="libx264", audio_codec="aac",
-                         preset="medium", logger="bar" if verbose else None)
+    size = getattr(clip, "size", None)
+    if progress:
+        dims = f"{size[0]}x{size[1]}" if size else "?"
+        print(f"[{label}] start {out} {dims} @ {int(fps)}fps",
+              file=sys.stderr, flush=True)
+    logger = StderrProgress(label) if progress else ("bar" if verbose else None)
+    try:
+        clip.write_videofile(out, fps=int(fps), codec="libx264", audio_codec="aac",
+                             preset="medium", logger=logger)
+    finally:
+        if progress:
+            print(f"[{label}] done {out}", file=sys.stderr, flush=True)
     return out
 
 
@@ -411,7 +469,7 @@ def _size_warning(size) -> str | None:
     return None
 
 
-def render_recipe(recipe: dict) -> dict:
+def render_recipe(recipe: dict, progress: bool = False) -> dict:
     """Build and render a full video from a plain dict. See README.
 
     Top level: size, fps, background, noise, audio[], clips[], out.
@@ -461,7 +519,7 @@ def render_recipe(recipe: dict) -> dict:
             rendered = add_audio(rendered, au["source"], au.get("start", 0.0),
                                  au.get("volume", 1.0), au.get("duration"))
 
-        path = render(rendered, out, fps)
+        path = render(rendered, out, fps, progress=progress)
         return {"out": path, "size": list(size), "fps": fps,
                 "duration": round(rendered.duration, 3),
                 "warning": _size_warning(size)}

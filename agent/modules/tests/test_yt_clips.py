@@ -3,6 +3,7 @@
 Run: python3 tests/test_yt_clips.py
 """
 
+import json
 import os
 import sys
 import tempfile
@@ -14,13 +15,15 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import numpy as np  # noqa: E402
-from moviepy import ColorClip, VideoFileClip  # noqa: E402
+from moviepy import ColorClip, ImageSequenceClip, VideoFileClip  # noqa: E402
 from PIL import Image  # noqa: E402
 
 from yt_clips import crops  # noqa: E402
 from yt_clips import download as dlmod  # noqa: E402
 from yt_clips import highlights as hl  # noqa: E402
-from yt_clips.cli import _select_regions, main as yt_main  # noqa: E402
+from yt_clips import ocr  # noqa: E402
+from yt_clips.cli import (_candidate_windows, _layout_warnings,  # noqa: E402
+                          _select_regions, main as yt_main)
 from yt_clips.store import Store  # noqa: E402
 
 FORMAT = {
@@ -189,6 +192,119 @@ class CropsTest(unittest.TestCase):
         self.assertEqual(got["size"], [10, 10])
 
 
+class LayoutWarningTest(unittest.TestCase):
+    def test_full_cover_has_no_warnings(self):
+        regions = [
+            {"name": "scoreboard", "box": [0, 0, 100, 20],
+             "size": [180, 40], "fit": "cover", "position": [0, 0]},
+            {"name": "action", "box": [0, 20, 100, 80],
+             "size": [180, 280], "fit": "cover", "position": [0, 40]},
+        ]
+        self.assertEqual(_layout_warnings(regions, "180x320"), [])
+
+    def test_gap_warns_about_black_bars(self):
+        regions = [
+            {"name": "scoreboard", "box": [0, 0, 100, 20],
+             "size": [180, 40], "position": [0, 0]},
+            {"name": "action", "box": [0, 20, 100, 80],
+             "size": [180, 200], "fit": "cover", "position": [0, 40]},
+        ]
+        warnings = _layout_warnings(regions, "180x320")
+        self.assertTrue(any("uncovered" in w and "black bars" in w for w in warnings))
+
+    def test_contain_and_overflow_warn(self):
+        regions = [
+            {"name": "action", "box": [0, 0, 100, 100],
+             "size": [180, 200], "fit": "contain", "position": [10, 10]},
+        ]
+        warnings = _layout_warnings(regions, "180x320")
+        self.assertTrue(any("fit=contain" in w for w in warnings))
+        self.assertTrue(any("uncovered" in w for w in warnings))
+
+    def test_missing_size_and_position_warn(self):
+        warnings = _layout_warnings([{"name": "action", "box": [0, 0, 10, 10]}],
+                                    "180x320")
+        self.assertTrue(any("no 'size'" in w for w in warnings))
+
+
+    def test_whole_scoreboard_warns_when_score_box_exists(self):
+        regions = [
+            {"name": "scoreboard", "box": [0, 0, 300, 100], "size": [1080, 300],
+             "fit": "cover", "position": [0, 0]},
+            {"name": "action", "box": [0, 0, 100, 100], "size": [1080, 1620],
+             "fit": "cover", "position": [0, 300]},
+        ]
+        warnings = _layout_warnings(regions, "1080x1920", {"score": [10, 10, 50, 50]})
+        self.assertTrue(any("whole board" in w for w in warnings))
+        self.assertTrue(any("not shown" in w for w in warnings))
+
+    def test_score_region_needs_source_box(self):
+        regions = [
+            {"name": "score", "box": [0, 0, 100, 100], "size": [1080, 300],
+             "fit": "cover", "position": [0, 0]},
+            {"name": "action", "box": [0, 0, 100, 100], "size": [1080, 1620],
+             "fit": "cover", "position": [0, 300]},
+        ]
+        warnings = _layout_warnings(regions, "1080x1920")
+        self.assertTrue(any("no source box" in w for w in warnings))
+
+    def test_score_too_small_warns(self):
+        regions = [
+            {"name": "score", "box": [0, 0, 100, 100], "size": [1080, 60],
+             "fit": "cover", "position": [0, 0]},
+            {"name": "action", "box": [0, 0, 100, 100], "size": [1080, 1860],
+             "fit": "cover", "position": [0, 60]},
+        ]
+        warnings = _layout_warnings(regions, "1080x1920", {"score": [0, 0, 100, 100]})
+        self.assertTrue(any("too small" in w for w in warnings))
+
+    def test_score_aspect_mismatch_warns(self):
+        regions = [
+            {"name": "score", "box": [0, 0, 100, 100], "size": [1080, 300],
+             "fit": "cover", "position": [0, 0]},
+            {"name": "action", "box": [0, 0, 100, 100], "size": [1080, 1620],
+             "fit": "cover", "position": [0, 300]},
+        ]
+        warnings = _layout_warnings(regions, "1080x1920", {"score": [0, 0, 100, 100]})
+        self.assertTrue(any("target aspect" in w for w in warnings))
+
+
+class CandidateWindowTest(unittest.TestCase):
+    def test_score_anchor_builds_window(self):
+        items, warnings = _candidate_windows(
+            [{"score": 326, "pre_roll": 20, "post_roll": 3}])
+        self.assertEqual(items[0]["start"], 306.0)
+        self.assertEqual(items[0]["end"], 329.0)
+        self.assertIn("Score @", items[0]["reason"])
+        self.assertEqual(warnings, [])
+
+    def test_short_pre_roll_warns(self):
+        _, warnings = _candidate_windows([{"score": 360, "pre_roll": 5}])
+        self.assertTrue(any("celebration" in w for w in warnings))
+
+    def test_short_window_warns(self):
+        _, warnings = _candidate_windows([{"start": 10, "end": 13}])
+        self.assertTrue(any("too short" in w for w in warnings))
+
+    def test_plain_candidate_untouched(self):
+        items, warnings = _candidate_windows([{"start": 10, "end": 30, "reason": "x"}])
+        self.assertEqual(items[0], {"start": 10.0, "end": 30.0, "reason": "x"})
+        self.assertEqual(warnings, [])
+
+    def test_segments_build_composite(self):
+        items, warnings = _candidate_windows(
+            [{"segments": [{"start": 10, "end": 12}, {"start": 30, "end": 33}]}])
+        self.assertEqual(items[0]["start"], 10.0)
+        self.assertEqual(items[0]["end"], 33.0)
+        self.assertEqual(len(items[0]["segments"]), 2)
+        self.assertEqual(warnings, [])
+
+    def test_overlapping_segments_warn(self):
+        _, warnings = _candidate_windows(
+            [{"segments": [{"start": 10, "end": 15}, {"start": 14, "end": 20}]}])
+        self.assertTrue(any("overlap" in w for w in warnings))
+
+
 class SelectionTest(unittest.TestCase):
     def test_select_regions(self):
         regions = [{"name": "scoreboard", "box": [0, 0, 10, 10]},
@@ -236,6 +352,101 @@ class SelectionTest(unittest.TestCase):
         self.assertTrue(out.exists())
         with VideoFileClip(str(out)) as check:
             self.assertEqual(check.size, [180, 320])
+
+
+class SegmentRenderTest(unittest.TestCase):
+    def test_segments_span_and_store(self):
+        store = Store(Path(tempfile.mkdtemp()) / "t.db")
+        try:
+            sid = store.add_source("u", ext_id="seg", path="x.mp4")
+            cid = store.add_candidates(sid, [{
+                "segments": [{"start": 10, "end": 12}, {"start": 30, "end": 33}],
+                "reason": "Trick + Score"}])[0]
+            clip = store.get_clip(cid)
+            self.assertEqual(clip["start_s"], 10.0)
+            self.assertEqual(clip["end_s"], 33.0)
+            segs = json.loads(clip["segments_json"])
+            self.assertEqual([s["start"] for s in segs], [10.0, 30.0])
+        finally:
+            store.close()
+
+    def test_two_segments_render_as_one_clip(self):
+        tmp = Path(tempfile.mkdtemp())
+        src = tmp / "src.mp4"
+        clip = ColorClip(size=(160, 90), color=(10, 10, 10), duration=2.0)
+        clip.write_videofile(str(src), fps=10, codec="libx264", audio=False, logger=None)
+        clip.close()
+        db = tmp / "t.db"
+        store = Store(db)
+        sid = store.add_source("u", ext_id="seg2", path=str(src))
+        store.set_format(sid, {
+            "size": "180x320", "background": "#101010",
+            "regions": [
+                {"name": "score", "box": [0, 0, 160, 20], "size": [180, 40],
+                 "fit": "cover", "position": [0, 0]},
+                {"name": "action", "box": [0, 20, 160, 70], "size": [180, 280],
+                 "fit": "cover", "position": [0, 40]},
+            ]})
+        cid = store.add_candidates(sid, [{
+            "segments": [{"start": 0.0, "end": 0.5}, {"start": 1.0, "end": 1.5}]}])[0]
+        store.close()
+        out = tmp / "out.mp4"
+        yt_main(["--db", str(db), "clip", "--clip", str(cid), "--out", str(out)])
+        self.assertTrue(out.exists())
+        with VideoFileClip(str(out)) as check:
+            self.assertAlmostEqual(check.duration, 1.0, delta=0.25)
+            self.assertEqual(check.size, [180, 320])
+
+
+class ScoreOcrTest(unittest.TestCase):
+    def test_parse_value_range(self):
+        self.assertEqual(ocr.parse_value("9.5"), (9.5, "9.5"))
+        self.assertEqual(ocr.parse_value("9,50"), (9.5, "9,50"))
+        self.assertEqual(ocr.parse_value("10.0"), (10.0, "10.0"))
+        self.assertEqual(ocr.parse_value("O.5"), (0.5, "0.5"))
+        self.assertIsNone(ocr.parse_value("12.0"))
+        self.assertIsNone(ocr.parse_value("SCORE"))
+
+    def test_runs_merge_same_value(self):
+        got = ocr.runs([{"t": 326, "value": 9.5}, {"t": 327, "value": 9.5},
+                        {"t": 330, "value": 9.5}], step=1.0)
+        self.assertEqual(len(got), 2)
+        self.assertEqual(got[0]["count"], 2)
+        self.assertEqual(got[1]["count"], 1)
+
+    def _score_frame(self, text="9.5"):
+        from PIL import ImageDraw, ImageFont
+        font_path = Path(r"C:\Windows\Fonts\arialbd.ttf")
+        if not font_path.is_file():
+            self.skipTest("Arial Bold not available")
+        img = Image.new("RGB", (360, 120), (20, 80, 20))
+        draw = ImageDraw.Draw(img)
+        draw.text((20, 5), text, font=ImageFont.truetype(str(font_path), 86),
+                  fill=(255, 255, 255))
+        return np.array(img)
+
+    @unittest.skipUnless(ocr.tesseract_path(), "tesseract not installed")
+    def test_read_frame(self):
+        got = ocr.read_frame(self._score_frame(), (0, 0, 360, 120))
+        self.assertIsNotNone(got)
+        self.assertEqual(got["value"], 9.5)
+
+    @unittest.skipUnless(ocr.tesseract_path(), "tesseract not installed")
+    def test_scan_finds_score_in_video(self):
+        tmp = Path(tempfile.mkdtemp())
+        score = self._score_frame()
+        blank = np.zeros((180, 320, 3), dtype=np.uint8)
+        with_score = blank.copy()
+        with_score[:107] = np.array(Image.fromarray(score).resize((320, 107)))
+        video = tmp / "score.mp4"
+        clip = ImageSequenceClip([blank, with_score], fps=1)
+        clip.write_videofile(str(video), fps=1, codec="libx264", audio=False,
+                             logger=None)
+        clip.close()
+        got = ocr.scan(video, (0, 0, 320, 107), [0.0, 1.0], step=1.0)
+        self.assertEqual(got["checked"], 2)
+        self.assertIsNotNone(got["first"])
+        self.assertEqual(got["first"]["value"], 9.5)
 
 
 class CookieOptsTest(unittest.TestCase):
