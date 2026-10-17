@@ -155,8 +155,19 @@ python3 -m yt_dlp -v "<url>" 2>&1 | grep -E "PO Token Providers|Generating"
 #            [pot:bgutil:http] Generating a gvs PO Token for web client ...
 ```
 
-Kommt trotz Provider weiter der Bot-Check, Client wechseln (env, siehe `TOOLS.md`):
-`YTDLP_EXTRACTOR_ARGS="youtube:player_client=mweb,tv,web_safari"`.
+Kommt trotz Provider weiter der Bot-Check, Client wechseln (env, siehe `TOOLS.md`).
+Auf der VPS bewährt: **`web_safari`** — `mweb` und `tv` enden dort in
+`The page needs to be reloaded` bzw. SABR-only:
+
+`YTDLP_EXTRACTOR_ARGS="youtube:player_client=web_safari"`
+
+Zwei Dinge, die sonst still fehlen:
+
+- `yt-dlp` **mit** Extra installieren: `pip install -U "yt-dlp[default]"`. Das
+  Paket `yt-dlp-ejs` (Challenge-Solver) kommt sonst nicht mit →
+  `n challenge solving failed`, auch mit Node.
+- Node als Runtime aktivieren: `YTDLP_JS_RUNTIMES=node` (yt-dlp nutzt von sich
+  aus nur `deno`).
 
 > Den Server **nicht** auf `0.0.0.0` binden (`-H`/`-p` nicht verändern) — er ist
 > unauthentifiziert. Notnagel, falls `npm ci` an `canvas` scheitert: das

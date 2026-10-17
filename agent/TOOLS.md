@@ -123,7 +123,10 @@ Wake bei Fertig). **Nicht der Standard.**
     (Default `~/.openclaw/state/brainrot/cookies.txt`), wenn vorhanden
   - `YTDLP_PROXY` — nicht gesperrter Ausgang (z. B. `socks5://host:1080`);
     **die** Lösung, wenn die IP selbst geblockt ist
-  - `YTDLP_EXTRACTOR_ARGS` — z. B. `youtube:player_client=tv,web_safari`
+  - `YTDLP_JS_RUNTIMES` — z. B. `node` (yt-dlp nutzt von sich aus nur `deno`;
+    ohne Runtime scheitert die JS-Challenge)
+  - `YTDLP_EXTRACTOR_ARGS` — z. B. `youtube:player_client=web_safari`
+    (auf der VPS enden `mweb`/`tv` in „The page needs to be reloaded")
   - Die Datei ist ein Zugang → **außerhalb** Repo/Workspace. yt-dlp schreibt sie
     beim Lauf zurück (beschreibbar halten). Details: `modules/yt_clips/README.md`.
 - `TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET`, `TIKTOK_REDIRECT_URI`,

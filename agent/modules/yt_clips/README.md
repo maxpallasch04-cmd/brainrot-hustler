@@ -57,8 +57,14 @@ Dafür zwei Schalter (beide ohne Code-Änderung nutzbar):
 - `YTDLP_EXTRACTOR_ARGS` — z. B. `youtube:player_client=tv,web_safari`
   (entspricht yt-dlp `--extractor-args`; manchmal reicht schon das).
 
-Zusätzlich hilft ein **aktuelles yt-dlp** (`python3 -m pip install -U yt-dlp`)
-und der PO-Token-Provider (`bgutil-ytdlp-pot-provider`).
+Zusätzlich braucht YouTube eine **JS-Challenge-Lösung**: `yt-dlp[default]`
+(enthält `yt-dlp-ejs`) plus eine Runtime — `YTDLP_JS_RUNTIMES=node`
+(yt-dlp aktiviert von sich aus nur `deno`). Fehlt das, kommt
+`n challenge solving failed`. Dazu der PO-Token-Provider
+(`bgutil-ytdlp-pot-provider`).
+
+Auf der VPS bewährt: `YTDLP_EXTRACTOR_ARGS=youtube:player_client=web_safari`
+(`mweb`/`tv` enden dort in `The page needs to be reloaded`).
 
 ## Format (pro Video)
 
