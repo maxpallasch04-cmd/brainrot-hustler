@@ -1,18 +1,18 @@
 # BrainrotHustler – Module-Abhängigkeiten (Python 3.11+)
 # Kein venv im Repo: gegen den Host-Python installieren, siehe README §4.
 #
-# Braucht nur: hosting, twitch_clips, yt_clips, video_generation, subtitles.
+# Braucht nur: editor, yt_clips, hosting, longterm_memory, monitoring.
 # longterm_memory und monitoring kommen mit der stdlib aus.
 
 requests>=2.31           # hosting (Download/HTTP)
 boto3>=1.34              # hosting (Cloudflare R2, S3-kompatibel)
 # `[default]` ist Pflicht: bringt yt-dlp-ejs (Challenge-Solver-Skripte) mit. Ohne
 # die scheitert YouTube mit "n challenge solving failed" (auch mit Node als Runtime).
-yt-dlp[default]>=2025.1.1  # twitch_clips, yt_clips (Video-Download + JS-Challenge)
-moviepy>=2.0,<3          # video_generation, yt_clips (Schnitt)
-numpy>=1.26              # video_generation, yt_clips, subtitles
-Pillow>=10               # video_generation, yt_clips (Crops/Thumbnails)
-imageio-ffmpeg>=0.4.9    # subtitles (liefert das ffmpeg-Binary mit)
+yt-dlp[default]>=2025.1.1  # yt_clips (Video-Download + JS-Challenge)
+moviepy>=2.0,<3          # yt_clips (Analyse: motion/ocr/highlights)
+numpy>=1.26              # yt_clips (Analyse: motion/ocr/highlights)
+Pillow>=10               # yt_clips (Crops/Thumbnails)
+imageio-ffmpeg>=0.4.9    # editor (liefert das ffmpeg-Binary mit)
 # yt_clips OCR braucht das **Tesseract-Binary** (TESSERACT_CMD oder PATH),
 # kein Python-Paket. Optionaler Fallback: rapidocr-onnxruntime.
 

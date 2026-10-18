@@ -194,11 +194,9 @@ Fremdpakete (alles andere ist stdlib):
 | Modul | Braucht |
 |---|---|
 | `hosting` | `boto3`, `requests` |
-| `twitch_clips` | `yt-dlp` |
 | `yt_clips` | `yt-dlp`, `moviepy`, `numpy`, `Pillow` |
-| `video_generation` | `moviepy`, `numpy`, `Pillow` |
-| `subtitles` | `imageio-ffmpeg` (bringt das ffmpeg-Binary mit) |
-| `longterm_memory`, `monitoring` | — (nur stdlib) |
+| `editor` | `imageio-ffmpeg` (bringt das ffmpeg-Binary mit) |
+| `longterm_memory`, `monitoring` | - (nur stdlib) |
 
 VPS einrichten (genau einmal, aus dem Workspace-Root):
 
@@ -229,7 +227,8 @@ cd modules
 ../.venv/bin/python3 -m hosting.cli usage
 ```
 
-Windows (kein venv): `python -m pytest modules/tests` bzw. `python -m hosting.cli …`.
+Windows (kein venv), **aus `modules/`**: `python -m pytest tests` bzw.
+`python -m hosting.cli …`.
 `ffmpeg` liefert `imageio-ffmpeg` selbst; ein System-`ffmpeg` ist optional.
 
 ---

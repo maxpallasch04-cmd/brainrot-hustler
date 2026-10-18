@@ -1,10 +1,10 @@
 # USER.md — About Your Human
 
-- **Name:** _fülle aus_
-- **Anrede:** _fülle aus_
-- **Zeitzone:** _fülle aus_ (Vorschlag: Europe/Berlin)
+- **Name:** Peter
+- **Anrede:** Sensei
+- **Zeitzone:** Europe/Berlin
 
 ## Context
-- **Upload-Tempo:** _fülle aus_ (Vorschlag: 3–5 Uploads/Tag)
-- **Nische:** _fülle aus_
+- **Upload-Tempo:** 2 Uploads/Tag
+- **Nische:** Skateboarding
 - **Weiteres:** _fülle aus_

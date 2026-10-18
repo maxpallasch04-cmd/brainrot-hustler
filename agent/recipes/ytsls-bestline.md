@@ -39,17 +39,22 @@ Bewertung.
   - `Action-Bereich` · **required** (Region-Name `action`) — wo sich der Fahrer
     aufhält; Höhe > Breite, Höhe ≥ ½ Originalhöhe — lieber **größer** als
     reinzoomen.
-- **Aufteilung 9:16 — lückenlos:** `score` als Band **oben auf volle Breite
-  (1080 px)**, Richtwert **300 px hoch** (200–400; Ziffern vollständig lesbar, nicht
-  abgeschnitten), `fit: cover`. Action darunter, füllt den **Rest bis 1920** — keine
-  Lücke. Mit `name`/`list`: je ein schmales Band (120–180 px), Action entsprechend
-  kleiner. `fit` immer **`cover`**, **nie `stretch`**.
-- **Action-Box — der Fahrer bleibt drin:** Die Box zeigt den **ganzen** Run. Der
-  Fahrer darf den Rand **nie berühren oder verlassen**: an **jeder Seite ≥ 10 %
-  Rand** (bei 1080 px Ausgabebreite ≥ 110 px). Im Zweifel Box **vergrößern** statt
-  reinzoomen. 3–5 Frames aus dem Run prüfen; passt es nicht → Box **pro Clip** neu
-  setzen (`format-set --clip`).
+- **Aufteilung 9:16 — volle Höhe, kein Beschnitt:** **eine Box** (`action`), die
+  den Skater über den ganzen Run enthält. Die Box ist **9:16 in voller
+  Quellhöhe** (Breite = Höhe × 9/16), `fit: cover`, `position: center` → füllt
+  1080x1920, **keine schwarzen Ränder, kein zusätzlicher Beschnitt**. Eine
+  breitere Box wird von `cover` seitlich beschnitten; `contain` erzeugt Balken.
+- **Scoreboard als Kachel in der Ecke:** `scoreboard` mit `fit: contain`, `size`
+  passend zur Kachel, `position` in eine freie Ecke, Breite ≈ 25–35 % der
+  Ausgabe — **kein Band oben, keine volle Breite**. `boxes.score` bleibt die
+  OCR-Box.
+- **Action-Box — der Fahrer bleibt drin:** Der Fahrer darf den Rand **nie
+  berühren oder verlassen**: an **jeder Seite ≥ 10 % Rand** (bei 1080 px
+  Ausgabebreite ≥ 110 px). Im Zweifel Box **vergrößern** statt reinzoomen.
+  3–5 Frames aus dem Run prüfen; passt es nicht → Box **pro Clip** neu setzen
+  (eigenes Rezept für diesen Clip).
 - **Fallback ohne Scoreboard:** nur `action`, füllt das Bild.
+- Action **`cover`**, Kachel **`contain`**; `stretch` verzerrt.
 - **Nicht relevant / ignorieren:** Werbung, Logo, Informationsblock.
 - Ausgabe: 9:16, Höhe ≥ 1280.
 
@@ -61,7 +66,7 @@ Bewertung.
     einem Fenster.
   - **B — zwei Fenster:** Score kommt deutlich später → **Run-Fenster** +
     **Score-Fenster** (1 s vor der Einblendung bis 2–4 s danach), **hart
-    aneinander** (kein Übergang). Beide Kanten mit `subtitles.cli snap` auf
+    aneinander** (kein Übergang). Beide Kanten mit `editor.cli subtitles snap` auf
     **Satz-/Wortgrenzen** legen: Run-Fenster endet an der Satzgrenze **nach dem
     Run**, Score-Fenster beginnt an der Satzgrenze **vor der Einblendung**.
     **Nie mitten in einen Kommentatorsatz schneiden** — auch nicht am Übergang
@@ -77,7 +82,7 @@ Bewertung.
 - **Score-Anzeige:** per OCR auf der festen `boxes.score`
   (`yt_clips.cli ocr --clip <id> --step 1`); erster **stabiler** Treffer
   (0.0–10.0) = End-Anker, nicht die Ansage.
-- **Satzgrenzen:** an Satz-/Pausengrenze schneiden (`subtitles.cli cut --snap
+- **Satzgrenzen:** an Satz-/Pausengrenze schneiden (`editor.cli subtitles cut --snap
   sentence`), nicht mitten in den Kommentar.
 - **Anzeige:** Score-Bereich **immer** mitzeigen (erstmal).
 - Ein Clip pro Run.

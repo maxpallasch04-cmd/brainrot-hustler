@@ -40,22 +40,23 @@ eines von beiden.
 - Sprache: Englisch.
 
 ### Konkrete Clip-Auswahl
-- **Länge:** **max. 40 s** — Trick + Reaktion + Bewertung.
-- **Start-Anker = der Trick**, nicht der Score: Start beim **Anlauf/vor dem
-  Absprung**. Die Ansage ist **kein** Startanker — sie kann weit nach dem Trick
-  liegen (Fehlerbild: Start bei der Ansage → nur Feier).
+- **Länge:** **max. 40 s** — Anlauf + Trick + Landung + Reaktion + Bewertung.
+- **Start-Anker = Score-Einblendung Vorgänger**, per OCR auf der festen `boxes.score` erkennen,
+  Run up startet oft Kurz danach, zusätzlich Transkript prüfen bei langen Feiern oder Replay auch erst später.
 - **End-Anker = Score-Einblendung** per OCR auf der festen `boxes.score`
-  (`yt_clips.cli ocr --clip <id> --step 1`): erster **stabiler** Treffer
+  (`yt_clips.cli ocr --clip <id> --box <boxes.score> --step 1`): erster **stabiler** Treffer
   (0.0–10.0), **4–7 s danach** enden.
 - **A oder B:**
   - **A — ein Fenster:** Score-Einblendung kommt **≤ 40 s** nach dem Trick →
     ein Fenster (Start vor dem Trick, Ende 4–7 s nach der Einblendung).
+  - **Trick + Reaktion sind EIN Segment** — nicht in Trick / Gesicht / Score
+    dreiteilen.
   - **B — zwei Fenster:** Sie kommt später → **Trick-Fenster** (~25 s: Anlauf
     bis Landung/Reaktion) + **Score-Fenster** (~15 s: 5–7 s vor der Einblendung
-    bis 4–7 s danach). Gesamt ≤ 40 s. `yt_clips.cli clip` rendert beide Segmente
-    und hängt sie zusammen.
-- **Schnittkanten:** vorher mit `subtitles.cli snap` auf **Satz-/Wortgrenzen**
-  legen (bzw. `subtitles.cli cut --snap sentence`): Trick-Fenster endet an der
+    bis 4–7 s danach). Gesamt ≤ 40 s. Im Rezept werden daraus zwei `clips[]`,
+    die der Editor verkettet.
+- **Schnittkanten:** vorher mit `editor.cli subtitles snap` auf **Satz-/Wortgrenzen**
+  legen (bzw. `editor.cli subtitles cut --snap sentence`): Trick-Fenster endet an der
   Satzgrenze **nach der Landung/Reaktion**, Score-Fenster beginnt an der
   Satzgrenze **vor der Einblendung** (sonst mindestens auf einem Wortanfang).
   **Nie mitten in Kommentatorsätze oder Wörter schneiden** — auch nicht am
@@ -67,26 +68,20 @@ eines von beiden.
 
 ### Clip-Schnitt (9:16)
 - Finales Format **9:16**, Höhe **≥ 1280**.
-- **Action-Bereich (`action`)**: 9:16-Ausschnitt mit **maximaler Höhe**, der den
-  Skater im Trick **vollständig** enthält — meist mittig. Die Box zeigt den
-  **ganzen** Trick (Anlauf, Absprung, Flug, Landung); Höhe > Breite, Höhe
-  ≥ ½ Originalhöhe. Der Fahrer darf den Rand **nie berühren oder verlassen**:
-  an **jeder Seite ≥ 10 % Rand** (bei 1080 px Ausgabebreite ≥ 110 px).
-  Im Zweifel Box **vergrößern** statt reinzoomen. 3–5 Frames aus dem
-  Trickfenster prüfen; passt es nicht → Box **pro Clip** neu setzen
-  (`yt_clips.cli format-set --clip`).
-- **Scoreboard während der Score-Zeit**: den `Scoreboard`-Bereich als
-  Einblendung in eine **Ecke** legen (Region mit `box` + `size` + `position`
-  + `start`/`duration`), gleichzeitig mit dem Action-Bereich. `score` und `name`
-  müssen vollständig lesbar sein; `list` nur, wenn der Platz reicht.
+- **Action-Bereich (`action`)**: **eine Box pro Clip**, die den Skater über alle
+  relevanten Kameras enthält — meist die Mitte. Die Box ist **9:16 in voller Quellhöhe**. 3–5 Frames aus dem Trickfenster prüfen; passt es nicht → Box **verschieben/vergrößern**
+- **Scoreboard als Kachel in der Ecke**: die vertikale `scoreboard`-Box als
+  Region mit `fit: contain`, `size` passend zur Kachel, `position` in eine freie
+  Ecke, Breite ≈ 25–35 % der Ausgabe. **Kein Band oben, keine volle Breite.**
+  `score` und `name` müssen vollständig lesbar sein; `list` nur, wenn Platz ist.
   `boxes.score` bleibt die OCR-Box.
 - **Fallback ohne Scoreboard:** nur `action`, füllt das Bild.
-- `fit` immer **`cover`**, **nie** `stretch`.
+- Action **`cover`**, Kachel **`contain`**;
 - **Keine zusätzliche Musik, Original-Audio behalten.**
 - Nicht relevant: Werbung, Logo, Informationsblock.
 
 ## Ton / Titel / Beschreibung
-- Aus dem Transkript: **Trickname** und **Skater** (keine eingebrannten Untertitel).
+- Aus dem Transkript: **Trickname** und **Skater**.
 - Titel-Muster: „`<Trick>` — `<Skater>` (`<Score>`)", knapp.
 - Beschreibung: 1 Zeile + Hashtags.
 - Hashtags: `#SLS` + `#<Skater>` + `#<Trick>`.
@@ -95,5 +90,31 @@ eines von beiden.
 - Do: die Bewertung im Bild zeigen; Reaktion kurz mitnehmen.
 - Don't: Bewertungen unter 8; lange Vorläufe oder mehrere Tricks in einem Clip.
 
-## Beispiele
-- Best Trick Kickflip Backside Tailslide → Jubel → Score-Einblendung „9.10".
+## Beispiel: ein Clip in vier Aufrufen
+
+```json
+{
+  "size": [1080, 1920], "fps": 30, "background": "#000000",
+  "expect": {"ratio": "error"},
+  "boxes": {"score": [1200, 80, 180, 90]},
+  "clips": [{
+    "source": "clips/sls-2025.mp4", "start": 1268, "end": 1301,
+    "regions": [
+      {"name": "action", "box": [690, 60, 540, 960], "size": [1080, 1920],
+       "position": [0, 0], "fit": "cover"},
+      {"name": "scoreboard", "box": [40, 20, 360, 900], "size": [320, 800],
+       "position": [730, 60], "fit": "contain"}
+    ]
+  }]
+}
+```
+
+Die Verhältnisse stimmen **exakt**: Action 540×960 → 1080×1920 (2×), Kachel
+360×900 → 320×800 (0,889×). Also kein Beschnitt, keine Balken, keine Verzerrung —
+`expect.ratio: error` erzwingt das. Die Action-Box wird pro Clip an 3 Frames
+geprüft und bei Bedarf verschoben, nie gezoomt.
+
+1. `yt_clips.cli next --recipe ytsls-besttrick` → Fenster + Clip-ID
+2. `editor.cli validate --spec clips/besttrick-5.json`
+3. `editor.cli render --spec clips/besttrick-5.json --overwrite`
+4. `yt_clips.cli used --clip 5`

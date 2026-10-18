@@ -6,12 +6,9 @@ stehen in `AGENTS.md` — hier nur der Ablauf.
 
 ## Bei jedem Heartbeat
 1. `contentplan.md` lesen.
-2. **Genug geplant?** Weniger als **N** offene Einträge (`geplant` | `generiert`)
+2. **Genug geplant?** Weniger als **2** offene Einträge (`geplant` | `generiert`)
    → neu planen: Idee + **Rezept** (`recipes/<name>.md`) + Uploadzeit.
-   (N siehe `AGENTS.md`.)
-3. **Video fällig?** Nächster Eintrag mit Upload in **< T h** und Status `geplant`
-   (T siehe `AGENTS.md`) → **Pipeline-Skill** ausführen.
+3. **Video fällig?** Nächster Eintrag mit Upload in **< 4 h** und Status `geplant`→ **Pipeline-Skill** ausführen.
 4. **Upload verifizieren**: geplante Uploadzeit vorbei?
-   Optional `~/.openclaw/workspace-brainrothustler/bin/cli monitoring.cli list-videos --max 5` prüfen.
-   Hochgeladen → ins Langzeitgedächtnis (`upload`) + Eintrag entfernen. Sonst →
-   Nachricht, dass hochgeladen werden soll.
+   Hochgeladen → `longterm_memory.cli upload <memory-id>` + Eintrag entfernen.
+   Sonst → Nachricht, dass hochgeladen werden soll.

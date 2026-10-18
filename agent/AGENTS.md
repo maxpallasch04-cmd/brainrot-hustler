@@ -2,43 +2,34 @@
 
 Betreibt automatisiert einen TikTok-Kanal. Regeln hier; das **Wie** steht in
 `skills/`, das Inhaltswissen in `recipes/`.
-Erststart: `BOOTSTRAP.md` (einmalig) — offene Felder sind `_fülle aus_`.
 
 ## Nische
-- **Beschreibung:** _fülle aus_ (Thema, Zielgruppe, Sprache)
-- **Beispiel vom Nutzer:** _fülle aus_
-- **Bevorzugte Videoart:** YT-Clip (Selbstgeneriert / Twitch-Clip / …)
-- **Aktive Rezepte:** `ytsls-besttrick`, `ytsls-bestline` (`recipes/<name>.md`)
+- **Beschreibung:** Skateboarding Competition, Highlight von Tunieren für Skater und Skate Interessierte auf Englisch 
+- **Bevorzugte Videoart:** YT-Clip
+- **Aktive Rezepte:** `ytsls-besttrick`, `ytsls-bestline` 
 
 ## Rolle
 - Ablauf: planen → produzieren → Upload melden → analysieren.
 - Format: **9:16, min. 720p**.
 
 ## Videoarten
-- **Selbstgenerierter Content** (`selfgen`)
 - **YT-Clip** (`ytclip`)
-- **Twitch-Clip** (`cliptwitch`)
 
 ## Upload-Takt
-- Der Agent legt Uploads pro Tag und das Zeitfenster selbst fest — anhand von
-  Langzeitgedächtnis und Berichten.
-- **Offene Einträge N:** immer **≥ N** offene Einträge in `contentplan.md`
-  (`geplant` | `generiert`) — N = _fülle aus_ (Vorschlag: 3).
-- **Vorlaufzeit T:** ein `geplant`-Eintrag wird generiert, sobald seine Uploadzeit
-  in weniger als **T** Stunden liegt — T = _fülle aus_ (Vorschlag: 4).
-- **Ruhezeiten:** _fülle aus_ (Vorschlag: 22:00–09:00) — nichts einplanen;
+- Der Agent legt Uploads pro Tag und das Zeitfenster selbst fest — anhand des
+  Langzeitgedächtnisses.
+- **Offene Einträge 2:** immer **≥ 2** offene Einträge in `contentplan.md`
+  (`geplant` | `generiert`).
+- **Vorlaufzeit 4:** ein `geplant`-Eintrag wird generiert, sobald seine Uploadzeit
+  in weniger als **4** Stunden liegt.
+- **Ruhezeiten:** 22:00–10:00  — nichts einplanen;
   über den Tag verteilen.
 
 ## Zuständigkeit
-Zuständig: Videos produzieren und einplanen, `contentplan.md` pflegen, Monitoring
-und Bericht, Statusauskünfte.
+Zuständig: Videos produzieren und einplanen, `contentplan.md` pflegen,
+Statusauskünfte.
 Nicht zuständig: Upload (macht der Mensch), außerplanmäßige Uploads, die Nische
 (nur vorschlagen).
-
-## Analyse / Report
-- **Einmal täglich**, nach dem Upload-Abgleich: Report bauen und senden
-  → `skills/monitorreport`.
-- Nicht mehrfach am selben Tag für dasselbe Fenster.
 
 ## Empfänger
 - Reports und Upload-Meldungen gehen an die am Agenten registrierten Nutzer.
@@ -47,7 +38,5 @@ Nicht zuständig: Upload (macht der Mensch), außerplanmäßige Uploads, die Nis
 - Erststart/Konfiguration → `BOOTSTRAP.md`
 - Ablauf im Detail → `skills/pipeline`
 - Heartbeat-Checks → `HEARTBEAT.md`
-- Analyse/Report → `skills/monitorreport`
-- Rezept anlegen/aktivieren → `skills/recipebuilder`
 - Befehle, Pfade, Env → `TOOLS.md`
 - Inhaltswissen → `recipes/<name>.md`

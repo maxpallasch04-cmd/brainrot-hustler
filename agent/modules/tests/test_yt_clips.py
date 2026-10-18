@@ -21,19 +21,10 @@ from PIL import Image  # noqa: E402
 from yt_clips import crops  # noqa: E402
 from yt_clips import download as dlmod  # noqa: E402
 from yt_clips import highlights as hl  # noqa: E402
+from yt_clips import motion  # noqa: E402
 from yt_clips import ocr  # noqa: E402
-from yt_clips.cli import (_candidate_windows, _layout_warnings,  # noqa: E402
-                          _select_regions, main as yt_main)
+from yt_clips.cli import _candidate_windows, main as yt_main  # noqa: E402
 from yt_clips.store import Store  # noqa: E402
-
-FORMAT = {
-    "size": "180x320",
-    "background": "#101010",
-    "regions": [
-        {"box": [0, 0, 160, 20], "size": [180, 40], "position": [0, 0]},
-        {"box": [0, 20, 160, 70], "size": [180, 280], "position": [0, 40]},
-    ],
-}
 
 
 class YoutubeIdTest(unittest.TestCase):
@@ -55,26 +46,43 @@ class StoreTest(unittest.TestCase):
         self.store.close()
 
     def test_empty_queue_is_download(self):
-        self.assertEqual(self.store.next_work()["action"], "download")
+        self.assertEqual(self.store.next_work("sls")["action"], "download")
 
-    def test_format_step_first(self):
-        sid = self.store.add_source("https://youtu.be/abc", ext_id="abc", path="x.mp4")
-        nw = self.store.next_work()
-        self.assertEqual(nw["action"], "format")
+    def test_fresh_source_needs_find(self):
+        sid = self.store.add_source("https://youtu.be/abc", ext_id="abc", path="x.mp4",
+                                    recipe="sls")
+        nw = self.store.next_work("sls")
+        self.assertEqual(nw["action"], "find")
         self.assertEqual(nw["source"]["id"], sid)
 
-    def test_format_then_find_then_clip(self):
-        sid = self.store.add_source("u", ext_id="v1", path="x.mp4")
-        self.store.set_format(sid, FORMAT)
-        self.assertEqual(self.store.get_source(sid)["status"], "Formatted")
-        self.assertEqual(self.store.next_work()["action"], "find")
+    def test_find_then_clip_then_done(self):
+        sid = self.store.add_source("u", ext_id="v1", path="x.mp4", recipe="sls")
+        self.assertEqual(self.store.next_work("sls")["action"], "find")
         ids = self.store.add_candidates(sid, [{"start": 1.0, "end": 5.0, "reason": "Tor"}])
-        nw = self.store.next_work()
+        nw = self.store.next_work("sls")
         self.assertEqual(nw["action"], "clip")
         self.assertEqual(nw["clip"]["id"], ids[0])
         self.store.mark_clip(ids[0], "Used")
         self.assertEqual(self.store.get_source(sid)["status"], "Exhausted")
-        self.assertEqual(self.store.next_work()["action"], "download")
+        self.assertEqual(self.store.next_work("sls")["action"], "download")
+
+    def test_next_is_per_recipe(self):
+        sid = self.store.add_source("u", ext_id="r-a", path="a.mp4", recipe="sls")
+        self.store.add_candidates(sid, [{"start": 1.0, "end": 5.0}])
+        self.assertEqual(self.store.next_work("sls")["action"], "clip")
+        # a different recipe must not see the SLS work
+        self.assertEqual(self.store.next_work("other")["action"], "download")
+
+    def test_next_needs_a_recipe(self):
+        with self.assertRaises(ValueError):
+            self.store.next_work("")
+
+    def test_recipe_set_and_filter(self):
+        sid = self.store.add_source("u", ext_id="r-set", path="a.mp4")
+        self.store.set_recipe(sid, "sls")
+        self.assertEqual(self.store.get_source(sid)["recipe"], "sls")
+        self.assertEqual([s["id"] for s in self.store.list_sources("sls")], [sid])
+        self.assertEqual(self.store.list_sources("other"), [])
 
     def test_upsert_by_ext_id(self):
         a = self.store.add_source("u1", ext_id="same", path="a.mp4")
@@ -89,40 +97,28 @@ class StoreTest(unittest.TestCase):
 
     def test_list_sources_counts(self):
         sid = self.store.add_source("u", ext_id="c", path="x.mp4")
-        self.store.set_format(sid, FORMAT)
         self.store.add_candidates(sid, [{"start": 0, "end": 1}, {"start": 2, "end": 3}])
         row = self.store.list_sources()[0]
         self.assertEqual(row["candidates"], 2)
         self.assertEqual(row["used"], 0)
 
+    def test_boxes_roundtrip(self):
+        sid = self.store.add_source("u", ext_id="bx", path="x.mp4", recipe="sls")
+        self.assertIsNone(self.store.get_boxes(sid))
+        got = self.store.set_boxes(sid, {"score": [1200, 80, 180, 90]})
+        self.assertEqual(got["boxes"], {"score": [1200, 80, 180, 90]})
+        self.assertEqual(self.store.get_boxes(sid)["score"], [1200, 80, 180, 90])
+        self.assertEqual(
+            self.store.get_source(sid)["boxes"]["score"], [1200, 80, 180, 90])
+        self.assertEqual(
+            self.store.next_work("sls")["source"]["boxes"]["score"], [1200, 80, 180, 90])
 
-class ClipRenderTest(unittest.TestCase):
-    def test_clip_uses_stored_format(self):
-        tmp = Path(tempfile.mkdtemp())
-        src = tmp / "src.mp4"
-        clip = ColorClip(size=(160, 90), color=(10, 10, 10), duration=1.0)
-        clip.write_videofile(str(src), fps=10, codec="libx264", audio=False, logger=None)
-        clip.close()
-
-        db = tmp / "t.db"
-        store = Store(db)
-        sid = store.add_source("u", ext_id="r1", path=str(src))
-        store.set_format(sid, FORMAT)
-        ids = store.add_candidates(sid, [{"start": 0.0, "end": 0.9, "reason": "test"}])
-        store.close()
-
-        out = tmp / "out.mp4"
-        yt_main(["--db", str(db), "clip", "--clip", str(ids[0]), "--out", str(out), "--used"])
-        self.assertTrue(out.exists())
-        with VideoFileClip(str(out)) as check:
-            self.assertEqual(check.size, [180, 320])
-
-        store = Store(db)
-        try:
-            self.assertEqual(store.get_clip(ids[0])["status"], "Used")
-            self.assertEqual(store.get_source(sid)["status"], "Exhausted")
-        finally:
-            store.close()
+    def test_bad_box_rejected(self):
+        sid = self.store.add_source("u", ext_id="bx2", path="x.mp4")
+        with self.assertRaises(ValueError):
+            self.store.set_boxes(sid, {"score": [1, 2, 3]})
+        with self.assertRaises(ValueError):
+            self.store.set_boxes(sid, {"score": [1, 2, 0, 4]})
 
 
 class HighlightsTest(unittest.TestCase):
@@ -192,81 +188,33 @@ class CropsTest(unittest.TestCase):
         self.assertEqual(got["size"], [10, 10])
 
 
-class LayoutWarningTest(unittest.TestCase):
-    def test_full_cover_has_no_warnings(self):
-        regions = [
-            {"name": "scoreboard", "box": [0, 0, 100, 20],
-             "size": [180, 40], "fit": "cover", "position": [0, 0]},
-            {"name": "action", "box": [0, 20, 100, 80],
-             "size": [180, 280], "fit": "cover", "position": [0, 40]},
-        ]
-        self.assertEqual(_layout_warnings(regions, "180x320"), [])
+class MotionProfileTest(unittest.TestCase):
+    def test_static_clip_has_no_motion(self):
+        tmp = Path(tempfile.mkdtemp())
+        src = tmp / "static.mp4"
+        clip = ColorClip(size=(160, 90), color=(20, 20, 20), duration=1.0)
+        clip.write_videofile(str(src), fps=10, codec="libx264", audio=False, logger=None)
+        clip.close()
+        got = motion.profile(src, start=0, end=1.0, fps=10)
+        self.assertIsNone(got["first_motion"])
+        self.assertIsNone(got["last_motion"])
 
-    def test_gap_warns_about_black_bars(self):
-        regions = [
-            {"name": "scoreboard", "box": [0, 0, 100, 20],
-             "size": [180, 40], "position": [0, 0]},
-            {"name": "action", "box": [0, 20, 100, 80],
-             "size": [180, 200], "fit": "cover", "position": [0, 40]},
-        ]
-        warnings = _layout_warnings(regions, "180x320")
-        self.assertTrue(any("uncovered" in w and "black bars" in w for w in warnings))
-
-    def test_contain_and_overflow_warn(self):
-        regions = [
-            {"name": "action", "box": [0, 0, 100, 100],
-             "size": [180, 200], "fit": "contain", "position": [10, 10]},
-        ]
-        warnings = _layout_warnings(regions, "180x320")
-        self.assertTrue(any("fit=contain" in w for w in warnings))
-        self.assertTrue(any("uncovered" in w for w in warnings))
-
-    def test_missing_size_and_position_warn(self):
-        warnings = _layout_warnings([{"name": "action", "box": [0, 0, 10, 10]}],
-                                    "180x320")
-        self.assertTrue(any("no 'size'" in w for w in warnings))
-
-
-    def test_whole_scoreboard_warns_when_score_box_exists(self):
-        regions = [
-            {"name": "scoreboard", "box": [0, 0, 300, 100], "size": [1080, 300],
-             "fit": "cover", "position": [0, 0]},
-            {"name": "action", "box": [0, 0, 100, 100], "size": [1080, 1620],
-             "fit": "cover", "position": [0, 300]},
-        ]
-        warnings = _layout_warnings(regions, "1080x1920", {"score": [10, 10, 50, 50]})
-        self.assertTrue(any("whole board" in w for w in warnings))
-        self.assertTrue(any("not shown" in w for w in warnings))
-
-    def test_score_region_needs_source_box(self):
-        regions = [
-            {"name": "score", "box": [0, 0, 100, 100], "size": [1080, 300],
-             "fit": "cover", "position": [0, 0]},
-            {"name": "action", "box": [0, 0, 100, 100], "size": [1080, 1620],
-             "fit": "cover", "position": [0, 300]},
-        ]
-        warnings = _layout_warnings(regions, "1080x1920")
-        self.assertTrue(any("no source box" in w for w in warnings))
-
-    def test_score_too_small_warns(self):
-        regions = [
-            {"name": "score", "box": [0, 0, 100, 100], "size": [1080, 60],
-             "fit": "cover", "position": [0, 0]},
-            {"name": "action", "box": [0, 0, 100, 100], "size": [1080, 1860],
-             "fit": "cover", "position": [0, 60]},
-        ]
-        warnings = _layout_warnings(regions, "1080x1920", {"score": [0, 0, 100, 100]})
-        self.assertTrue(any("too small" in w for w in warnings))
-
-    def test_score_aspect_mismatch_warns(self):
-        regions = [
-            {"name": "score", "box": [0, 0, 100, 100], "size": [1080, 300],
-             "fit": "cover", "position": [0, 0]},
-            {"name": "action", "box": [0, 0, 100, 100], "size": [1080, 1620],
-             "fit": "cover", "position": [0, 300]},
-        ]
-        warnings = _layout_warnings(regions, "1080x1920", {"score": [0, 0, 100, 100]})
-        self.assertTrue(any("target aspect" in w for w in warnings))
+    def test_moving_square_is_measured(self):
+        tmp = Path(tempfile.mkdtemp())
+        frames = []
+        for i in range(20):
+            frame = np.zeros((90, 160, 3), dtype=np.uint8)
+            x = 10 + i * 7
+            frame[30:60, x:x + 20] = 255
+            frames.append(frame)
+        src = tmp / "moving.mp4"
+        seq = ImageSequenceClip(frames, fps=10)
+        seq.write_videofile(str(src), fps=10, codec="libx264", audio=False, logger=None)
+        seq.close()
+        got = motion.profile(src, start=0, end=2.0, fps=10, width=160)
+        self.assertIsNotNone(got["first_motion"])
+        self.assertLess(got["first_motion"], 0.6)
+        self.assertGreater(got["last_motion"], 0.9)
 
 
 class CandidateWindowTest(unittest.TestCase):
@@ -305,55 +253,6 @@ class CandidateWindowTest(unittest.TestCase):
         self.assertTrue(any("overlap" in w for w in warnings))
 
 
-class SelectionTest(unittest.TestCase):
-    def test_select_regions(self):
-        regions = [{"name": "scoreboard", "box": [0, 0, 10, 10]},
-                   {"name": "action", "box": [0, 10, 10, 10]},
-                   {"box": [1, 1, 2, 2]}]  # unnamed is always kept
-        self.assertEqual([r.get("name") for r in _select_regions(regions, drop="scoreboard")],
-                         ["action", None])
-        self.assertEqual([r.get("name") for r in _select_regions(regions, only="action")],
-                         ["action", None])
-        with self.assertRaises(ValueError):
-            _select_regions(regions, only="nope")
-
-    def test_clip_format_override(self):
-        store = Store(Path(tempfile.mkdtemp()) / "t.db")
-        try:
-            sid = store.add_source("u", ext_id="f", path="x.mp4")
-            store.set_format(sid, FORMAT)
-            cid = store.add_candidates(sid, [{"start": 0, "end": 1}])[0]
-            self.assertIsNone(store.get_clip_format(cid))
-            store.set_clip_format(cid, {"regions": [{"name": "action", "box": [0, 0, 1, 1]}]})
-            self.assertEqual(store.get_clip_format(cid)["regions"][0]["name"], "action")
-        finally:
-            store.close()
-
-    def test_clip_drop_region_renders(self):
-        tmp = Path(tempfile.mkdtemp())
-        src = tmp / "src.mp4"
-        clip = ColorClip(size=(160, 90), color=(10, 10, 10), duration=1.0)
-        clip.write_videofile(str(src), fps=10, codec="libx264", audio=False, logger=None)
-        clip.close()
-        db = tmp / "t.db"
-        store = Store(db)
-        sid = store.add_source("u", ext_id="dr", path=str(src))
-        store.set_format(sid, {
-            "size": "180x320", "background": "#101010",
-            "regions": [
-                {"name": "scoreboard", "box": [0, 0, 160, 20], "size": [180, 40], "position": [0, 0]},
-                {"name": "action", "box": [0, 20, 160, 70], "size": [180, 280], "position": [0, 0]},
-            ]})
-        cid = store.add_candidates(sid, [{"start": 0.0, "end": 0.9}])[0]
-        store.close()
-        out = tmp / "out.mp4"
-        yt_main(["--db", str(db), "clip", "--clip", str(cid), "--out", str(out),
-                 "--drop", "scoreboard"])
-        self.assertTrue(out.exists())
-        with VideoFileClip(str(out)) as check:
-            self.assertEqual(check.size, [180, 320])
-
-
 class SegmentRenderTest(unittest.TestCase):
     def test_segments_span_and_store(self):
         store = Store(Path(tempfile.mkdtemp()) / "t.db")
@@ -369,34 +268,6 @@ class SegmentRenderTest(unittest.TestCase):
             self.assertEqual([s["start"] for s in segs], [10.0, 30.0])
         finally:
             store.close()
-
-    def test_two_segments_render_as_one_clip(self):
-        tmp = Path(tempfile.mkdtemp())
-        src = tmp / "src.mp4"
-        clip = ColorClip(size=(160, 90), color=(10, 10, 10), duration=2.0)
-        clip.write_videofile(str(src), fps=10, codec="libx264", audio=False, logger=None)
-        clip.close()
-        db = tmp / "t.db"
-        store = Store(db)
-        sid = store.add_source("u", ext_id="seg2", path=str(src))
-        store.set_format(sid, {
-            "size": "180x320", "background": "#101010",
-            "regions": [
-                {"name": "score", "box": [0, 0, 160, 20], "size": [180, 40],
-                 "fit": "cover", "position": [0, 0]},
-                {"name": "action", "box": [0, 20, 160, 70], "size": [180, 280],
-                 "fit": "cover", "position": [0, 40]},
-            ]})
-        cid = store.add_candidates(sid, [{
-            "segments": [{"start": 0.0, "end": 0.5}, {"start": 1.0, "end": 1.5}]}])[0]
-        store.close()
-        out = tmp / "out.mp4"
-        yt_main(["--db", str(db), "clip", "--clip", str(cid), "--out", str(out)])
-        self.assertTrue(out.exists())
-        with VideoFileClip(str(out)) as check:
-            self.assertAlmostEqual(check.duration, 1.0, delta=0.25)
-            self.assertEqual(check.size, [180, 320])
-
 
 class ScoreOcrTest(unittest.TestCase):
     def test_parse_value_range(self):

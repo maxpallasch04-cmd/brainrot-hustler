@@ -5,10 +5,12 @@ Shares the project DB (``data/brainrot.db`` / ``BRAINROT_DB``) with
 
 State machine
 -------------
-``yt_source.status``:  Downloaded  -> no format yet (step: format)
-                       Formatted   -> has format, clips possible (steps: find/clip)
-                       Exhausted   -> nothing left to clip
-``yt_clip.status``:    Candidate -> Used | Skipped
+``yt_source.status``:  Downloaded (work: find candidates)
+                       Exhausted  (nothing left to clip)
+``yt_clip.status``:    Candidate  -> Used | Skipped
+
+The layout does not live here. It is an ``editor`` recipe file; this store only
+knows sources, candidate windows and their status.
 """
 
 from __future__ import annotations
@@ -33,7 +35,7 @@ CREATE TABLE IF NOT EXISTS yt_source (
     title       TEXT    NOT NULL DEFAULT '',
     duration_s  REAL,
     recipe      TEXT    NOT NULL DEFAULT '',
-    format_json TEXT,
+    boxes_json  TEXT,
     chapters_json TEXT,
     subs_path   TEXT,
     created_at  INTEGER NOT NULL,
@@ -50,7 +52,6 @@ CREATE TABLE IF NOT EXISTS yt_clip (
     reason     TEXT    NOT NULL DEFAULT '',
     status     TEXT    NOT NULL DEFAULT 'Candidate',
     video_id   INTEGER,
-    format_json TEXT,
     segments_json TEXT,
     created_at INTEGER NOT NULL
 );
@@ -58,19 +59,17 @@ CREATE INDEX IF NOT EXISTS idx_yt_clip_status ON yt_clip (status);
 CREATE INDEX IF NOT EXISTS idx_yt_clip_source ON yt_clip (source_id);
 """
 
-SOURCE_STATUSES = ("Downloaded", "Formatted", "Exhausted")
+SOURCE_STATUSES = ("Downloaded", "Exhausted")
 CLIP_STATUSES = ("Candidate", "Used", "Skipped")
 
 
 def _migrate(conn: sqlite3.Connection) -> None:
     """Additive migrations for DBs created by older versions."""
     source_cols = {row["name"] for row in conn.execute("PRAGMA table_info(yt_source)")}
-    for name in ("chapters_json", "subs_path"):
+    for name in ("chapters_json", "subs_path", "boxes_json"):
         if name not in source_cols:
             conn.execute(f"ALTER TABLE yt_source ADD COLUMN {name} TEXT")
     clip_cols = {row["name"] for row in conn.execute("PRAGMA table_info(yt_clip)")}
-    if "format_json" not in clip_cols:
-        conn.execute("ALTER TABLE yt_clip ADD COLUMN format_json TEXT")
     if "segments_json" not in clip_cols:
         conn.execute("ALTER TABLE yt_clip ADD COLUMN segments_json TEXT")
     conn.commit()
@@ -134,14 +133,25 @@ class Store:
     def get_source(self, source_id: int) -> dict | None:
         row = self.conn.execute("SELECT * FROM yt_source WHERE id = ?",
                                 (int(source_id),)).fetchone()
-        return dict(row) if row else None
+        if row is None:
+            return None
+        out = dict(row)
+        out["boxes"] = json.loads(out["boxes_json"]) if out.get("boxes_json") else None
+        return out
 
-    def list_sources(self) -> list[dict]:
-        return [dict(r) for r in self.conn.execute(
+    def list_sources(self, recipe: str | None = None) -> list[dict]:
+        sql = (
             "SELECT s.*, "
             "(SELECT COUNT(*) FROM yt_clip c WHERE c.source_id = s.id AND c.status = 'Candidate') AS candidates, "
             "(SELECT COUNT(*) FROM yt_clip c WHERE c.source_id = s.id AND c.status = 'Used') AS used "
-            "FROM yt_source s ORDER BY s.id")]
+            "FROM yt_source s"
+        )
+        args: list = []
+        if recipe:
+            sql += " WHERE s.recipe = ?"
+            args.append(str(recipe))
+        sql += " ORDER BY s.id"
+        return [dict(r) for r in self.conn.execute(sql, args)]
 
     def set_source_status(self, source_id: int, status: str) -> None:
         if status not in SOURCE_STATUSES:
@@ -150,24 +160,54 @@ class Store:
                           (status, int(source_id)))
         self.conn.commit()
 
-    # ---- format (per video) ---------------------------------------------
-
-    def set_format(self, source_id: int, spec) -> dict:
-        """Store the vision-derived format (regions) for a source. Marks Formatted."""
+    def set_recipe(self, source_id: int, recipe: str) -> dict:
+        """Tag a downloaded video with the recipe that picked it."""
+        name = str(recipe or "").strip()
+        if not name:
+            raise ValueError("recipe name must not be empty")
         if self.get_source(source_id) is None:
             raise KeyError(f"source {source_id} not found")
-        self.conn.execute(
-            "UPDATE yt_source SET format_json = ?, status = 'Formatted' WHERE id = ?",
-            (json.dumps(spec, ensure_ascii=False), int(source_id)))
+        self.conn.execute("UPDATE yt_source SET recipe = ? WHERE id = ?",
+                          (name, int(source_id)))
         self.conn.commit()
         return dict(self.get_source(source_id))
 
-    def get_format(self, source_id: int):
-        row = self.conn.execute("SELECT format_json FROM yt_source WHERE id = ?",
+    # ---- boxes (per video, measured once) -------------------------------
+
+    def set_boxes(self, source_id: int, boxes) -> dict:
+        """Store the measured sub-boxes of a source: ``{name: [x, y, w, h]}``.
+
+        Canonical per video (``boxes.score`` etc.). Recipes copy what they need;
+        ``ocr`` never reads this — it takes ``--box`` explicitly.
+        """
+        if not isinstance(boxes, dict) or not boxes:
+            raise ValueError("boxes must be a non-empty object {name: [x,y,w,h]}")
+        clean = {}
+        for name, value in boxes.items():
+            if not isinstance(value, (list, tuple)) or len(value) != 4:
+                raise ValueError(f"box {name!r} must be [x, y, w, h]")
+            try:
+                x, y, w, h = (int(float(v)) for v in value)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"box {name!r} values must be numbers") from exc
+            if w <= 0 or h <= 0:
+                raise ValueError(f"box {name!r} width/height must be positive")
+            clean[str(name)] = [x, y, w, h]
+        if self.get_source(source_id) is None:
+            raise KeyError(f"source {source_id} not found")
+        self.conn.execute("UPDATE yt_source SET boxes_json = ? WHERE id = ?",
+                          (json.dumps(clean, ensure_ascii=False), int(source_id)))
+        self.conn.commit()
+        return dict(self.get_source(source_id))
+
+    def get_boxes(self, source_id: int):
+        row = self.conn.execute("SELECT boxes_json FROM yt_source WHERE id = ?",
                                 (int(source_id),)).fetchone()
-        if row is None or not row["format_json"]:
+        if row is None or not row["boxes_json"]:
             return None
-        return json.loads(row["format_json"])
+        return json.loads(row["boxes_json"])
+
+    # ---- clips ----------------------------------------------------------
 
     def get_chapters(self, source_id: int):
         row = self.conn.execute("SELECT chapters_json FROM yt_source WHERE id = ?",
@@ -202,9 +242,8 @@ class Store:
                     if e <= s:
                         raise ValueError(f"segment end must be after start ({s}..{e})")
                     row = {"start": s, "end": e}
-                    for key in ("only", "drop", "reason"):
-                        if seg.get(key) is not None:
-                            row[key] = seg[key]
+                    if seg.get("reason") is not None:
+                        row["reason"] = seg["reason"]
                     segs.append(row)
                 start, end = min(s["start"] for s in segs), max(s["end"] for s in segs)
                 segments_json = json.dumps(segs, ensure_ascii=False)
@@ -241,23 +280,7 @@ class Store:
                                 (int(clip_id),)).fetchone()
         return dict(row) if row else None
 
-    # ---- per-clip format (hybrid: overrides the source format) ----------
-
-    def set_clip_format(self, clip_id: int, spec) -> dict:
-        """Store a per-clip layout (used when the clip's layout differs)."""
-        if self.get_clip(clip_id) is None:
-            raise KeyError(f"clip {clip_id} not found")
-        self.conn.execute("UPDATE yt_clip SET format_json = ? WHERE id = ?",
-                          (json.dumps(spec, ensure_ascii=False), int(clip_id)))
-        self.conn.commit()
-        return dict(self.get_clip(clip_id))
-
-    def get_clip_format(self, clip_id: int):
-        row = self.conn.execute("SELECT format_json FROM yt_clip WHERE id = ?",
-                                (int(clip_id),)).fetchone()
-        if row is None or not row["format_json"]:
-            return None
-        return json.loads(row["format_json"])
+    # ---- per-clip status -----------------------------------------------
 
     def mark_clip(self, clip_id: int, status: str, video_id=None) -> dict:
         """Mark a clip Used/Skipped; exhausts the source when nothing is left."""
@@ -278,20 +301,29 @@ class Store:
 
     # ---- work queue -----------------------------------------------------
 
-    def next_work(self) -> dict:
-        """What to do next: format | clip | find | download."""
+    def next_work(self, recipe: str) -> dict:
+        """What to do next **for one recipe**: clip | find | download.
+
+        The recipe is the queue key: sources of other recipes are invisible here,
+        so switching from one art to another does not keep surfacing old work.
+        """
+        name = str(recipe or "").strip()
+        if not name:
+            raise ValueError("next_work needs a recipe name")
+
         row = self.conn.execute(
-            "SELECT * FROM yt_source WHERE format_json IS NULL ORDER BY id LIMIT 1").fetchone()
+            "SELECT c.* FROM yt_clip c JOIN yt_source s ON s.id = c.source_id "
+            "WHERE c.status = 'Candidate' AND s.recipe = ? ORDER BY c.id LIMIT 1",
+            (name,)).fetchone()
         if row:
-            return {"action": "format", "source": dict(row)}
-        row = self.conn.execute(
-            "SELECT * FROM yt_clip WHERE status = 'Candidate' ORDER BY id LIMIT 1").fetchone()
-        if row:
-            return {"action": "clip", "clip": dict(row),
+            return {"action": "clip", "recipe": name, "clip": dict(row),
                     "source": self.get_source(row["source_id"])}
+
         row = self.conn.execute(
-            "SELECT * FROM yt_source WHERE status = 'Formatted' AND format_json IS NOT NULL "
-            "ORDER BY id LIMIT 1").fetchone()
+            "SELECT * FROM yt_source s WHERE s.status != 'Exhausted' AND s.recipe = ? "
+            "AND NOT EXISTS (SELECT 1 FROM yt_clip c WHERE c.source_id = s.id) "
+            "ORDER BY s.id LIMIT 1", (name,)).fetchone()
         if row:
-            return {"action": "find", "source": dict(row)}
-        return {"action": "download"}
+            return {"action": "find", "recipe": name, "source": self.get_source(row["id"])}
+
+        return {"action": "download", "recipe": name}

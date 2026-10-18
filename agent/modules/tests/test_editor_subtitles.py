@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from moviepy import ColorClip, VideoFileClip  # noqa: E402
 
-from subtitles import subs  # noqa: E402
+from editor import subtitles as subs  # noqa: E402
 
 SRT = """1
 00:00:01,000 --> 00:00:03,500

@@ -18,6 +18,7 @@ Ein Block pro Upload. Felder:
 - `idee` — in einem Satz, was das Video ist.
 - `status` — `geplant` | `generiert`.
 - `datei` — Pfad der gerenderten `.mp4` (leer bis generiert).
+- `memory` — ID aus `longterm_memory.cli add-video` (leer bis generiert).
 
 ```
 ## 2026-10-09 18:00
@@ -25,6 +26,7 @@ Ein Block pro Upload. Felder:
 - idee: Best-Trick Kickflip Backside Tailslide, Score 9.10
 - status: geplant
 - datei:
+- memory:
 ```
 
 ## Offen

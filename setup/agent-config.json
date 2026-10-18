@@ -15,7 +15,6 @@
             "apply_patch",
             "exec",
             "process",
-            "video_generate",
             "view_image",
             "message",
             "web_search",

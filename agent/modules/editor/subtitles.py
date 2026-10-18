@@ -19,6 +19,8 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from .probe import ffmpeg_exe
+
 TAG_RE = re.compile(r"<[^>]+>")
 WS_RE = re.compile(r"\s+")
 
@@ -323,14 +325,6 @@ def build_style(*, font=None, font_size=None, outline=None, alignment=None,
     return ",".join(parts) or None
 
 
-def _ffmpeg_exe() -> str:
-    try:
-        import imageio_ffmpeg
-        return imageio_ffmpeg.get_ffmpeg_exe()
-    except Exception:  # pragma: no cover - depends on host
-        return "ffmpeg"
-
-
 def _run_ffmpeg(cmd: list[str], cwd: str) -> None:
     proc = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
     if proc.returncode != 0:
@@ -351,7 +345,7 @@ def burn(video, subs, out, *, force_style: str | None = None, ffmpeg=None,
         raise SubtitleError(f"not a file: {subs_path}")
     out_path = Path(out).resolve()
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    exe = ffmpeg or _ffmpeg_exe()
+    exe = ffmpeg or ffmpeg_exe()
 
     with tempfile.TemporaryDirectory() as tmp:
         shutil.copyfile(subs_path, Path(tmp) / "subs.srt")
