@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import os
 import re
+import shutil
 from pathlib import Path
 
 DEFAULT_OUT_DIR = "clips"
@@ -106,6 +107,12 @@ def net_opts() -> dict:
             js[name.strip().lower()] = {"path": path.strip() or None}
         if js:
             opts["js_runtimes"] = js
+    elif shutil.which("node"):
+        # yt-dlp only enables deno by default. Node is usually installed and is
+        # needed for YouTube's n challenge; passing it explicitly avoids the
+        # silent "Some formats may be missing" / "Requested format is not
+        # available" failure.
+        opts["js_runtimes"] = {"node": {"path": None}}
     return opts
 
 

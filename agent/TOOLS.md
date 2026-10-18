@@ -135,8 +135,8 @@ Wake bei Fertig). **Nicht der Standard.**
     (Default `~/.openclaw/state/brainrot/cookies.txt`), wenn vorhanden
   - `YTDLP_PROXY` — nicht gesperrter Ausgang (z. B. `socks5://host:1080`);
     **die** Lösung, wenn die IP selbst geblockt ist
-  - `YTDLP_JS_RUNTIMES` — z. B. `node` (yt-dlp nutzt von sich aus nur `deno`;
-    ohne Runtime scheitert die JS-Challenge)
+  - `YTDLP_JS_RUNTIMES` — optionaler Override; **Node wird automatisch erkannt**,
+    wenn im PATH. Ohne Runtime scheitert die JS-Challenge (fehlende Formate).
   - `YTDLP_EXTRACTOR_ARGS` — z. B. `youtube:player_client=web_safari`
     (auf der VPS enden `mweb`/`tv` in „The page needs to be reloaded")
   - Die Datei ist ein Zugang → **außerhalb** Repo/Workspace. yt-dlp schreibt sie

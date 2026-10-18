@@ -7,6 +7,7 @@ pipeline from a plain dict (see README).
 
 from __future__ import annotations
 
+import os
 import sys
 import time
 from pathlib import Path
@@ -28,6 +29,21 @@ from proglog import ProgressBarLogger
 DEFAULT_SIZE = (1080, 1920)  # 9:16
 DEFAULT_FPS = 30
 MIN_SIZE = (720, 1280)       # spec: at least 720p
+
+# Render knobs tuned for a small host (2 vCPU / 4 GB, no swap).
+# x264 `medium` keeps reference frames plus a 40-frame lookahead alive;
+# `veryfast` + ref=2 + bframes=0 cuts encoder memory roughly in half and
+# renders 2-3x faster. Override with RENDER_PRESET / RENDER_THREADS.
+DEFAULT_PRESET = os.environ.get("RENDER_PRESET", "veryfast")
+DEFAULT_X264 = "ref=2:bframes=0:rc-lookahead=10"
+
+
+def _default_threads() -> int:
+    """Cap encoder threads: more threads = more live frame buffers = more RSS."""
+    env = os.environ.get("RENDER_THREADS", "").strip()
+    if env:
+        return max(1, int(env))
+    return max(1, min(2, os.cpu_count() or 1))
 
 
 # ---- helpers ------------------------------------------------------------
@@ -361,14 +377,17 @@ def noise(clip, amount: float = 0.06, mode: str = "grain",
         h, w = frame.shape[:2]
         channels = 1 if (monochrome or frame.ndim == 2) else frame.shape[2]
         n = rng.normal(0.0, 255.0 * float(amount), size=(h, w, channels))
-        if channels == 1 and frame.ndim == 3:
+        if frame.ndim == 2:
+            n = n[:, :, 0]
+        elif channels == 1:
             n = np.repeat(n, frame.shape[2], axis=2)
-        out = f + n
+        f += n                      # in place: one float buffer instead of two
         if mode == "vhs":
             scan = np.ones((h, 1, 1), dtype=np.float32)
             scan[::2] = 0.86  # darken every other line
-            out = out * scan
-        return np.clip(out, 0, 255).astype(np.uint8)
+            f *= scan
+        np.clip(f, 0, 255, out=f)
+        return f.astype(np.uint8)
 
     return clip.image_transform(apply)
 
@@ -440,22 +459,36 @@ class StderrProgress(ProgressBarLogger):
 
 
 def render(clip, out, fps: int = DEFAULT_FPS, verbose: bool = False,
-           progress: bool = False, label: str = "render") -> str:
+           progress: bool = False, label: str = "render",
+           preset: str | None = None, threads: int | None = None,
+           crf: int | None = None, ffmpeg_params: list | None = None) -> str:
     """Write `clip` to `out` as H.264/AAC mp4. Returns the output path.
+
+    Defaults are memory-bounded for small hosts: `veryfast`, ref=2, no
+    B-frames, short lookahead, 2 encoder threads. Override per call, via the
+    recipe (`preset` / `threads` / `crf`), or with RENDER_PRESET /
+    RENDER_THREADS.
 
     `progress` writes start/percent/done lines to **stderr** (stdout stays JSON).
     """
     out = str(out)
     Path(out).parent.mkdir(parents=True, exist_ok=True)
+    preset = preset or DEFAULT_PRESET
+    threads = max(1, int(threads)) if threads else _default_threads()
+    params = list(ffmpeg_params or [])
+    params += ["-x264-params", DEFAULT_X264]
+    if crf is not None:
+        params += ["-crf", str(int(crf))]
     size = getattr(clip, "size", None)
     if progress:
         dims = f"{size[0]}x{size[1]}" if size else "?"
-        print(f"[{label}] start {out} {dims} @ {int(fps)}fps",
-              file=sys.stderr, flush=True)
+        print(f"[{label}] start {out} {dims} @ {int(fps)}fps "
+              f"({preset}, {threads} threads)", file=sys.stderr, flush=True)
     logger = StderrProgress(label) if progress else ("bar" if verbose else None)
     try:
         clip.write_videofile(out, fps=int(fps), codec="libx264", audio_codec="aac",
-                             preset="medium", logger=logger)
+                             preset=preset, threads=threads,
+                             ffmpeg_params=params, logger=logger)
     finally:
         if progress:
             print(f"[{label}] done {out}", file=sys.stderr, flush=True)
@@ -519,7 +552,9 @@ def render_recipe(recipe: dict, progress: bool = False) -> dict:
             rendered = add_audio(rendered, au["source"], au.get("start", 0.0),
                                  au.get("volume", 1.0), au.get("duration"))
 
-        path = render(rendered, out, fps, progress=progress)
+        path = render(rendered, out, fps, progress=progress,
+                      preset=recipe.get("preset"), threads=recipe.get("threads"),
+                      crf=recipe.get("crf"))
         return {"out": path, "size": list(size), "fps": fps,
                 "duration": round(rendered.duration, 3),
                 "warning": _size_warning(size)}

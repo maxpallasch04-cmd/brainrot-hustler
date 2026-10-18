@@ -64,10 +64,11 @@ Dafür zwei Schalter (beide ohne Code-Änderung nutzbar):
   (entspricht yt-dlp `--extractor-args`; manchmal reicht schon das).
 
 Zusätzlich braucht YouTube eine **JS-Challenge-Lösung**: `yt-dlp[default]`
-(enthält `yt-dlp-ejs`) plus eine Runtime — `YTDLP_JS_RUNTIMES=node`
-(yt-dlp aktiviert von sich aus nur `deno`). Fehlt das, kommt
-`n challenge solving failed`. Dazu der PO-Token-Provider
-(`bgutil-ytdlp-pot-provider`).
+(enthält `yt-dlp-ejs`) plus eine Runtime. **Node wird automatisch erkannt**, wenn
+es im PATH liegt (`net_opts()` setzt dann `js_runtimes=node`);
+`YTDLP_JS_RUNTIMES` ist nur noch ein Override. Fehlt die Runtime, kommt
+`n challenge solving failed` → Formate fehlen → `Requested format is not
+available`. Dazu der PO-Token-Provider (`bgutil-ytdlp-pot-provider`).
 
 Auf der VPS bewährt: `YTDLP_EXTRACTOR_ARGS=youtube:player_client=web_safari`
 (`mweb`/`tv` enden dort in `The page needs to be reloaded`).

@@ -124,6 +124,10 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("--out", default=None, help="override the recipe out path")
     r.add_argument("--progress", action="store_true",
                    help="render progress to stderr (stdout stays JSON)")
+    r.add_argument("--size", default=None, help="output WxH (e.g. 720x1280)")
+    r.add_argument("--preset", default=None, help="x264 preset (default veryfast)")
+    r.add_argument("--crf", type=int, default=None, help="x264 quality (lower=better)")
+    r.add_argument("--threads", type=int, default=None, help="encoder threads")
 
     args = p.parse_args(argv)
 
@@ -197,6 +201,12 @@ def main(argv: list[str] | None = None) -> int:
             recipe = json.loads(Path(args.recipe).read_text(encoding="utf-8"))
         if args.out:
             recipe["out"] = args.out
+        if args.size:
+            recipe["size"] = args.size
+        for key in ("preset", "crf", "threads"):
+            value = getattr(args, key)
+            if value is not None:
+                recipe[key] = value
         _dump(edit.render_recipe(recipe, progress=args.progress))
     return 0
 

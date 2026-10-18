@@ -503,6 +503,12 @@ class CookieOptsTest(unittest.TestCase):
 class NetOptsTest(unittest.TestCase):
     """IP-block escape hatches (proxy / player client), no network."""
 
+    def setUp(self):
+        # Isolate from a real node install; individual tests override this.
+        patcher = mock.patch.object(dlmod.shutil, "which", return_value=None)
+        self.addCleanup(patcher.stop)
+        patcher.start()
+
     def _clear(self):
         os.environ.pop("YTDLP_PROXY", None)
         os.environ.pop("YTDLP_EXTRACTOR_ARGS", None)
@@ -541,6 +547,11 @@ class NetOptsTest(unittest.TestCase):
 
     def test_js_runtimes_env(self):
         with mock.patch.dict(os.environ, {"YTDLP_JS_RUNTIMES": "node"}, clear=False):
+            self.assertEqual(dlmod.net_opts(), {"js_runtimes": {"node": {"path": None}}})
+
+    def test_js_runtime_auto_detects_node(self):
+        with mock.patch.object(dlmod.shutil, "which", return_value="/usr/bin/node"):
+            self._clear()
             self.assertEqual(dlmod.net_opts(), {"js_runtimes": {"node": {"path": None}}})
 
     def test_js_runtimes_list_with_path(self):

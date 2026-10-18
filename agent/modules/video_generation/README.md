@@ -4,11 +4,9 @@
 > (Workspace-Wrapper, siehe `TOOLS.md`) — aus jedem cwd, venv wird automatisch aktiviert.
 
 Editing-Toolkit: schneiden, auf eine 9:16-Fläche einpassen, Bilder an `(x, y, t)`
-überlagern, Audio mischen und verketten. Für jede Videoart nutzen (selbstgeneriert,
-Clips).
+überlagern, Audio mischen und verketten.
 
-Ausgabe ist standardmäßig `1080x1920`; die Vorgabe verlangt mindestens **720p**
-(Höhe ≥ 1280). `render_recipe` meldet eine `warning`, wenn die Höhe < 1280 ist.
+Ausgabe ist standardmäßig `1080x1920`; 
 
 ## Python-API
 
@@ -114,5 +112,4 @@ Form (Datei oder `-` für stdin). `clips[]` werden in Reihenfolge verkettet.
 ```
 
 Alle Befehle geben JSON aus. `--progress` schreibt Start/Prozent/Ende nach
-**stderr** — stdout bleibt reines JSON, lange Renders sehen nicht mehr wie
-"hängt" aus.
+**stderr** 
