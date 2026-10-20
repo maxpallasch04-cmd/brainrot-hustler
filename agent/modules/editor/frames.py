@@ -9,7 +9,7 @@ from .probe import ProbeError, ffmpeg_exe, probe
 from .spec import even
 
 
-def frames(path, times=None, *, count: int | None = None, out_dir: str = "frames",
+def frames(path, times=None, *, count: int | None = None, out_dir: str = "memory/screenshots",
            prefix: str | None = None, width: int | None = None) -> list[dict]:
     """PNGs aus einem Video schneiden.
 

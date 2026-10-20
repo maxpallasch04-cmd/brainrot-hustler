@@ -15,7 +15,7 @@ import re
 import shutil
 from pathlib import Path
 
-DEFAULT_OUT_DIR = "clips"
+DEFAULT_OUT_DIR = "memory/clips"
 
 
 def default_cookies_file() -> Path:

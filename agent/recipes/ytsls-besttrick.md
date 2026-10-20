@@ -107,7 +107,7 @@ eines von beiden.
   "expect": {"ratio": "error"},
   "boxes": {"score": [1200, 80, 180, 90]},
   "clips": [{
-    "source": "clips/sls-2025.mp4", "start": 1268, "end": 1301,
+    "source": "memory/clips/sls-2025.mp4", "start": 1268, "end": 1301,
     "regions": [
       {"name": "action", "box": [690, 60, 540, 960], "size": [1080, 1920],
        "position": [0, 0], "fit": "cover"},
@@ -124,6 +124,6 @@ Die Verhältnisse stimmen **exakt**: Action 540×960 → 1080×1920 (2×), Kache
 geprüft und bei Bedarf verschoben, nie gezoomt.
 
 1. `yt_clips.cli next --recipe ytsls-besttrick` → Fenster + Clip-ID
-2. `editor.cli validate --spec clips/besttrick-5.json`
-3. `editor.cli render --spec clips/besttrick-5.json --overwrite`
+2. `editor.cli validate --spec memory/specs/besttrick-5.json`
+3. `editor.cli render --spec memory/specs/besttrick-5.json --out memory/videos/besttrick-5.mp4 --overwrite`
 4. `yt_clips.cli used --clip 5`

@@ -1,8 +1,8 @@
 # BrainrotHustler – Module-Abhängigkeiten (Python 3.11+)
 # Kein venv im Repo: gegen den Host-Python installieren, siehe README §4.
 #
-# Braucht nur: editor, yt_clips, hosting, longterm_memory, monitoring.
-# longterm_memory und monitoring kommen mit der stdlib aus.
+# Braucht nur: editor, yt_clips, hosting, longterm_memory.
+# longterm_memory kommt mit der stdlib aus.
 
 requests>=2.31           # hosting (Download/HTTP)
 boto3>=1.34              # hosting (Cloudflare R2, S3-kompatibel)

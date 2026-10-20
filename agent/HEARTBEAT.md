@@ -1,14 +1,26 @@
 # Heartbeat
 
 Kurzer, approximativer Check. Nichts fällig → nichts tun (kein Spam).
-Die Werte **N** (offene Einträge) und **T** (Vorlaufzeit) sowie die Ruhezeiten
-stehen in `AGENTS.md` — hier nur der Ablauf.
 
 ## Bei jedem Heartbeat
-1. `contentplan.md` lesen.
-2. **Genug geplant?** Weniger als **2** offene Einträge (`geplant` | `generiert`)
-   → neu planen: Idee + **Rezept** (`recipes/<name>.md`) + Uploadzeit.
-3. **Video fällig?** Nächster Eintrag mit Upload in **< 4 h** und Status `geplant`→ **Pipeline-Skill** ausführen.
-4. **Upload verifizieren**: geplante Uploadzeit vorbei?
-   Hochgeladen → `longterm_memory.cli upload <memory-id>` + Eintrag entfernen.
-   Sonst → Nachricht, dass hochgeladen werden soll.
+
+Ein Aufruf entscheidet alles:
+
+```
+~/.openclaw/workspace-brainrothustler/bin/cli longterm_memory.cli task
+```
+
+`action` sagt, was zu tun ist:
+
+| `action` | Bedeutung | was du tust |
+| -------- | --------- | ----------- |
+| `upload` | `generated` und Uploadzeit vorbei | melden, dass hochgeladen werden soll (`videos`) |
+| `pipeline` | ein `planned`-Eintrag ist fällig (Upload in < 4 h) | **Pipeline-Skill** mit `entry` ausführen |
+| `plan` | `open < target` (Default 2) | mit `add-plan` neue Einträge anlegen, bis `open` = `target` |
+| `idle` | nichts fällig | nichts tun |
+
+- Priorität ist genau diese Reihenfolge (zeitkritisch zuerst); was zusätzlich
+  ansteht, steht in `also`.
+- `entry` (bei `pipeline`) ist der komplette DB-Eintrag, `videos` (bei `upload`)
+  die Liste der fälligen Videos.
+

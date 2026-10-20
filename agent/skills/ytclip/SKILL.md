@@ -15,7 +15,7 @@ YT-Spezifische steht hier — die Pipeline ist generisch.
 - Identische Positionierungen (Boxes) **nur einmal pro Roh-Video erkennen**
   (nicht pro Clip); diese Boxen werden im Rezept benannt.
 - Ein Video kann über mehrere Läufe abgearbeitet werden. Der Zustand liegt in
-  `data/brainrot.db` (`yt_source`, `yt_clip`, siehe `yt_clips/README.md`).
+  `memory/brainrot.db` (`yt_source`, `yt_clip`, siehe `yt_clips/README.md`).
 
 ## Ablauf
 
@@ -34,14 +34,14 @@ YT-Spezifische steht hier — die Pipeline ist generisch.
    a. **5 Screenshots**, gleichmäßig über das Video verteilt (nicht am
       Anfang, sonst wird z. B. eine Halbzeit-Vollbildgrafik als „Layout" erkannt):
       ```
-      ~/.openclaw/workspace-brainrothustler/bin/cli editor.cli frames --in <pfad> --count 5 --out-dir frames --width 1280
+      ~/.openclaw/workspace-brainrothustler/bin/cli editor.cli frames --in <pfad> --count 5 --out-dir memory/screenshots --width 1280
       ```
    b. **Boxen erkennen:** die 5 Bilder mit `view_image` ansehen → es liefert
       **Boxen** `(x, y, w, h)` für die erkennbaren Bereiche.
 
    c. **Unterboxen** (wenn gefragt): die große Box **croppen + hochskalieren**:
       ```
-      ~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli crop-frame --in frames/<bild>.png --box <score-box> --out sb.png --scale 2
+      ~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli crop-frame --in memory/screenshots/<bild>.png --box <score-box> --out memory/screenshots/sb.png --scale 2
       ```
       **Nur diesen Ausschnitt** nochmal ins Vision-Modell geben. Koordinaten sind
       **relativ zum Crop**: zurückrechnen mit dem `offset` aus der Ausgabe
@@ -97,7 +97,7 @@ YT-Spezifische steht hier — die Pipeline ist generisch.
 
    a. **2–3 Frames aus dem Fenster** ansehen (nicht aus dem ganzen Video):
       ```
-      ~/.openclaw/workspace-brainrothustler/bin/cli editor.cli frames --in <rohvideo> --at <start>,<mitte>,<ende> --out-dir frames --width 1280
+      ~/.openclaw/workspace-brainrothustler/bin/cli editor.cli frames --in <rohvideo> --at <start>,<mitte>,<ende> --out-dir memory/screenshots --width 1280
       ```
       Box so legen/verschieben, dass der Akteur an **jeder Seite ≥ 10 %** Rand
       hat. Die Box muss **exakt 9:16** sein (Breite = Höhe × 9/16, ganzzahlig),
@@ -110,7 +110,7 @@ YT-Spezifische steht hier — die Pipeline ist generisch.
         "expect": {"ratio": "error"},
         "boxes": {"score": [1200, 80, 180, 90]},
         "clips": [{
-          "source": "clips/<datei>.mp4", "start": 1268, "end": 1301,
+          "source": "memory/clips/<datei>.mp4", "start": 1268, "end": 1301,
           "regions": [
             {"name": "action", "box": [690, 60, 540, 960], "size": [1080, 1920],
              "position": [0, 0], "fit": "cover"},
@@ -122,8 +122,8 @@ YT-Spezifische steht hier — die Pipeline ist generisch.
       ```
    c. **Prüfen, rendern, markieren:**
       ```
-      ~/.openclaw/workspace-brainrothustler/bin/cli editor.cli validate --spec clips/<name>.json
-      ~/.openclaw/workspace-brainrothustler/bin/cli editor.cli render   --spec clips/<name>.json --overwrite
+      ~/.openclaw/workspace-brainrothustler/bin/cli editor.cli validate --spec memory/specs/<name>.json
+      ~/.openclaw/workspace-brainrothustler/bin/cli editor.cli render   --spec memory/specs/<name>.json --out memory/videos/<name>.mp4 --overwrite
       ~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli used   --clip <clip-id>
       ```
       Ist nichts mehr übrig, wird das Video `Exhausted`.
@@ -135,7 +135,7 @@ YT-Spezifische steht hier — die Pipeline ist generisch.
 
    Kein offenes Video mehr → neues laden. Transcript gleich mitnehmen:
    ```
-   ~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli download --url <url> --out-dir clips --recipe <name> --subs-lang en
+   ~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli download --url <url> --out-dir memory/clips --recipe <name> --subs-lang en
    ```
    Der Transcript-Pfad landet in `subs_path` (sichtbar in `next`/`list`).
    Danach wieder bei `find`.
@@ -147,14 +147,9 @@ YT-Spezifische steht hier — die Pipeline ist generisch.
   braucht ihn für Titel/Beschreibung und die Erfassung.
 - **Pausieren ist normal:** `download` (langes Video) und `format`
   (Vision-Bestätigung) laufen nicht in einem Shot. Später hier fortsetzen.
-- **Plan-Eintrag:** erst wenn ein Highlight gewählt ist, den Eintrag für dieses
-  Video anlegen/ergänzen und die Idee setzen (z. B. „Tor, 78. Minute") — vorher
-  steht der Highlight ja nicht fest.
-- Danach **prüfen** und an die Pipeline zurückgeben:
-  ```
-  ~/.openclaw/workspace-brainrothustler/bin/cli editor.cli probe --in out.mp4
-  ```
-  (`size` 9:16, Höhe ≥ 1280, `duration`.)
+- **Plan-Eintrag:** Der Eintrag existiert schon (`add-plan`). Erst wenn ein
+  Highlight gewählt ist, ihn abschließen:
+  `longterm_memory.cli generated <id> --title ... --description ... --file memory/videos/<name>.mp4 --len-s <s>`.
 
 ## Hinweise
 

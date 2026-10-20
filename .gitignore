@@ -6,9 +6,11 @@ __pycache__/
 .venv/
 venv/
 
-# Secrets & runtime data (never commit)
-agent/modules/data/tiktok_token.json
-agent/modules/data/*.db
+# Runtime data: der komplette memory/-Ordner (Videos, Clips, Screenshots,
+# Specs, DB) ist Workspace-Artefakt, kein Repo-Inhalt.
+agent/memory/
+
+# Secrets (never commit)
 TODO.md
 *.token.json
 .env

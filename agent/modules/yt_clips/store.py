@@ -23,7 +23,7 @@ from pathlib import Path
 
 DEFAULT_DB = Path(
     os.environ.get("BRAINROT_DB")
-    or Path(__file__).resolve().parent.parent / "data" / "brainrot.db"
+    or Path(__file__).resolve().parent.parent.parent / "memory" / "brainrot.db"
 )
 
 SCHEMA = """

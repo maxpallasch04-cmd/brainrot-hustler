@@ -47,10 +47,15 @@ Ergebnis (Endzustand):
 ├── SOUL.md
 ├── TOOLS.md
 ├── USER.md
-├── contentplan.md
 ├── assets/
 ├── bin/            ← cli — Modul-Wrapper (einziger erlaubter Aufrufweg)
-├── modules/
+├── memory/         ← Laufzeit: alles, was der Agent produziert
+│   ├── videos/     ← fertige Renders (*.mp4)
+│   ├── clips/      ← Rohmaterial / Downloads
+│   ├── screenshots/← Frames, Crops, Standbilder
+│   ├── specs/      ← Editor-Specs (*.json)
+│   └── brainrot.db ← Contentplan + Video-Gedächtnis
+├── modules/        ← nur Code
 ├── recipes/
 ├── skills/
 └── .venv/          ← nur VPS: venv (nicht committen / nicht überschreiben)
@@ -59,15 +64,15 @@ Ergebnis (Endzustand):
 > `agents.entries.brainrothustler.workspace` muss auf genau diesen Pfad zeigen
 > (`~/.openclaw/workspace-brainrothustler`) — die Dateien liegen direkt darin.
 
-> **Bewusst kein `.git` im Workspace.** Der Agent schreibt `MEMORY.md`, `memory/`
-> und Token/DBs unter `modules/data/` zur Laufzeit. In einem Git-Arbeitsbaum
-> gibt das Dreck-Status, Pull-Konflikte und macht `git clean`/`git pull`
-> gefährlich für Laufzeit- und Token-Daten. Die Workspace-Dateien sind ein
-> **Deploy-Snapshot**, kein Repo.
+> **Bewusst kein `.git` im Workspace.** Der Agent schreibt `MEMORY.md` und den
+> kompletten `memory/`-Ordner (Videos, Clips, Screenshots, Specs, DB) zur
+> Laufzeit. In einem Git-Arbeitsbaum gibt das Dreck-Status, Pull-Konflikte und
+> macht `git clean`/`git pull` gefährlich für Laufzeit-Daten. Die
+> Workspace-Dateien sind ein **Deploy-Snapshot**, kein Repo.
 
-> **Laufzeit-Daten beim Update stehen lassen:** `MEMORY.md`, `memory/`,
-> `modules/data/` (Token, SQLite-DBs) und `.venv/` (VPS) sind lokal und **nicht**
-> Teil des Deploys — beim Update nicht überschreiben.
+> **Laufzeit-Daten beim Update stehen lassen:** `MEMORY.md`, `memory/` (inkl.
+> `brainrot.db`) und `.venv/` (VPS) sind lokal und **nicht** Teil des Deploys —
+> beim Update nicht überschreiben. Videos können GBs groß sein.
 
 ---
 
@@ -183,7 +188,7 @@ aus dem Workspace).
 
 **VPS: eigener venv.** Er liegt im Workspace-Root als `.venv/`
 (`~/.openclaw/workspace-brainrothustler/.venv`) — **nicht** committen und beim
-Update nicht überschreiben (wie `modules/data/`).
+Update nicht überschreiben (wie `memory/`).
 
 **Windows/MaxLaptop (verifiziert): kein venv** — die Module laufen gegen den
 Host-Python (3.14, `C:\Program Files\Python314`), Pakete im User-sitepackages
@@ -196,7 +201,7 @@ Fremdpakete (alles andere ist stdlib):
 | `hosting` | `boto3`, `requests` |
 | `yt_clips` | `yt-dlp`, `moviepy`, `numpy`, `Pillow` |
 | `editor` | `imageio-ffmpeg` (bringt das ffmpeg-Binary mit) |
-| `longterm_memory`, `monitoring` | - (nur stdlib) |
+| `longterm_memory` | - (nur stdlib) |
 
 VPS einrichten (genau einmal, aus dem Workspace-Root):
 
@@ -206,8 +211,9 @@ python3 -m venv .venv
 .venv/bin/pip install -r modules/requirements.txt
 ```
 
-**Aufrufweg für den Agenten ist der Wrapper `bin/cli`.** Er aktiviert die venv und
-wechselt selbst nach `modules/` — Module werden nur so aufgerufen (siehe
+**Aufrufweg für den Agenten ist der Wrapper `bin/cli`.** Er aktiviert die venv,
+setzt `modules/` auf den `PYTHONPATH` und wechselt ins Workspace-Root — relative
+Pfade zeigen damit auf `memory/`. Module werden nur so aufgerufen (siehe
 `agent/TOOLS.md`):
 
 ```bash

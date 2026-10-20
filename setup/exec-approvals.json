@@ -8,7 +8,7 @@
       "allowlist": [
         {
           "pattern": "~/.openclaw/workspace-brainrothustler/bin/cli",
-          "argPattern": "^(editor|hosting|longterm_memory|monitoring|yt_clips)\\.cli( \\S+)*$"
+          "argPattern": "^(editor|hosting|longterm_memory|yt_clips)\\.cli( \\S+)*$"
         }
       ]
     }

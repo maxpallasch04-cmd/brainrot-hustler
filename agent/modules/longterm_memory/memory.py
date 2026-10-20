@@ -1,9 +1,12 @@
 """Long-term memory: Python interface over the SQLite store.
 
+One row per video, one lifecycle:
+
+    planned  --markGenerated-->  generated  --upload-->  uploaded
+
 Public API (see README):
-    addVideo, getVideo, listVideos, listMetrics
-    upload, addMetric, newestMetric
-    videosUploadedSince, totalSince
+    addPlan, markGenerated, upload
+    getVideo, listVideos, openCount, nextDue, overdue
 """
 
 from __future__ import annotations
@@ -14,10 +17,14 @@ from pathlib import Path
 
 from . import db
 
+#: A `planned` entry becomes due this long before its upload time.
+DEFAULT_LEAD_S = 4 * 3600
+
 
 class Status(str, Enum):
-    CREATED = "Created"
-    UPLOADED = "Uploaded"
+    PLANNED = "planned"
+    GENERATED = "generated"
+    UPLOADED = "uploaded"
 
 
 class VideoArt(str, Enum):
@@ -32,6 +39,10 @@ def _now() -> int:
 
 def _art(value: VideoArt | str) -> str:
     return value.value if isinstance(value, VideoArt) else VideoArt(value).value
+
+
+def _status(value: Status | str) -> str:
+    return value.value if isinstance(value, Status) else Status(value).value
 
 
 class LongTermMemory:
@@ -49,27 +60,74 @@ class LongTermMemory:
     def __exit__(self, *exc) -> None:
         self.close()
 
-    # ---- videos ---------------------------------------------------------
+    # ---- plan -----------------------------------------------------------
 
-    def addVideo(
+    def addPlan(
         self,
-        title: str,
-        art: VideoArt | str,
-        len_s: int,
-        description: str = "",
+        idea: str,
+        recipe: str,
+        plan_at: int,
+        *,
+        art: VideoArt | str = VideoArt.YT_CLIP,
         theme: str = "",
-        recipe: str = "",
-        created_at: int | None = None,
     ) -> int:
-        """Insert a video (status Created) and return its id."""
+        """Insert a `planned` entry (no file yet) and return its id."""
+        if not idea.strip():
+            raise ValueError("idea must not be empty")
+        if not recipe.strip():
+            raise ValueError("recipe must not be empty")
         cur = self.conn.execute(
-            """INSERT INTO video (title, description, art, len_s, theme, recipe, created_at, status)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-            (title, description, _art(art), int(len_s), theme, recipe,
-             _now() if created_at is None else int(created_at), Status.CREATED.value),
+            """INSERT INTO video (idea, title, recipe, art, theme, len_s, plan_at, created_at, status)
+               VALUES (?, '', ?, ?, ?, 0, ?, ?, ?)""",
+            (idea.strip(), recipe.strip(), _art(art), theme, int(plan_at),
+             _now(), Status.PLANNED.value),
         )
         self.conn.commit()
         return int(cur.lastrowid)
+
+    def markGenerated(
+        self,
+        video_id: int,
+        *,
+        title: str,
+        description: str = "",
+        file: str,
+        len_s: int,
+        art: VideoArt | str | None = None,
+        theme: str | None = None,
+    ) -> None:
+        """Attach the render: title, caption, file path, duration -> `generated`."""
+        self._require(video_id)
+        row = self.getVideo(video_id)
+        if row["status"] == Status.UPLOADED.value:
+            raise ValueError(f"video {video_id} is already uploaded")
+        if not file.strip():
+            raise ValueError("file must not be empty")
+        self.conn.execute(
+            """UPDATE video
+                  SET title = ?, description = ?, file = ?, len_s = ?,
+                      art = COALESCE(?, art), theme = COALESCE(?, theme),
+                      status = ?
+                WHERE id = ?""",
+            (title.strip(), description, file.strip(), int(len_s),
+             _art(art) if art is not None else None, theme,
+             Status.GENERATED.value, int(video_id)),
+        )
+        self.conn.commit()
+
+    def upload(self, video_id: int, at: int | None = None) -> None:
+        """Mark a video as uploaded and record the upload time. Idempotent."""
+        self._require(video_id)
+        row = self.getVideo(video_id)
+        if row["status"] == Status.UPLOADED.value:
+            return  # already uploaded -> keep original upload_at
+        self.conn.execute(
+            "UPDATE video SET status = ?, upload_at = ? WHERE id = ?",
+            (Status.UPLOADED.value, _now() if at is None else int(at), int(video_id)),
+        )
+        self.conn.commit()
+
+    # ---- queries --------------------------------------------------------
 
     def getVideo(self, video_id: int) -> dict | None:
         row = self.conn.execute(
@@ -81,77 +139,71 @@ class LongTermMemory:
         sql, args = "SELECT * FROM video", ()
         if status is not None:
             sql += " WHERE status = ?"
-            args = (status.value if isinstance(status, Status) else str(status),)
-        sql += " ORDER BY id"
+            args = (_status(status),)
+        sql += " ORDER BY COALESCE(plan_at, created_at), id"
         return [dict(r) for r in self.conn.execute(sql, args)]
 
-    # ---- core interface -------------------------------------------------
-
-    def upload(self, video_id: int, at: int | None = None) -> None:
-        """Mark a video as Uploaded and record the upload time. Idempotent."""
-        self._require(video_id)
-        row = self.getVideo(video_id)
-        if row["status"] == Status.UPLOADED.value:
-            return  # already uploaded -> keep original upload_at
-        self.conn.execute(
-            "UPDATE video SET status = ?, upload_at = ? WHERE id = ?",
-            (Status.UPLOADED.value, _now() if at is None else int(at), int(video_id)),
-        )
-        self.conn.commit()
-
-    def addMetric(
-        self, video_id: int, views: int, comments: int, likes: int, ts: int | None = None
-    ) -> None:
-        """Append a metric snapshot; same (video_id, ts) overwrites."""
-        self._require(video_id)
-        ts = _now() if ts is None else int(ts)
-        self.conn.execute(
-            """INSERT INTO metric (video_id, ts, views, comments, likes)
-               VALUES (?, ?, ?, ?, ?)
-               ON CONFLICT (video_id, ts) DO UPDATE SET
-                   views = excluded.views,
-                   comments = excluded.comments,
-                   likes = excluded.likes""",
-            (int(video_id), ts, int(views), int(comments), int(likes)),
-        )
-        self.conn.commit()
-
-    def newestMetric(self, video_id: int) -> dict | None:
-        """Newest metric snapshot for a video, or None."""
+    def openCount(self) -> int:
+        """Entries still on the plan: `planned` + `generated`."""
         row = self.conn.execute(
-            "SELECT * FROM metric WHERE video_id = ? ORDER BY ts DESC LIMIT 1",
-            (int(video_id),),
+            "SELECT COUNT(*) AS n FROM video WHERE status IN (?, ?)",
+            (Status.PLANNED.value, Status.GENERATED.value),
+        ).fetchone()
+        return int(row["n"])
+
+    def nextDue(self, now: int | None = None,
+                lead_s: int = DEFAULT_LEAD_S) -> dict | None:
+        """Earliest `planned` entry whose upload time is within `lead_s`."""
+        row = self.conn.execute(
+            """SELECT * FROM video
+                WHERE status = ? AND plan_at IS NOT NULL AND plan_at <= ?
+                ORDER BY plan_at, id LIMIT 1""",
+            (Status.PLANNED.value, (int(now) if now is not None else _now()) + int(lead_s)),
         ).fetchone()
         return dict(row) if row else None
 
-    # ---- read helpers ---------------------------------------------------
-
-    def listMetrics(self, video_id: int, limit: int | None = None) -> list[dict]:
-        """Metric history for a video, oldest first."""
-        sql = "SELECT * FROM metric WHERE video_id = ? ORDER BY ts"
-        args: tuple = (int(video_id),)
-        if limit is not None:
-            sql = ("SELECT * FROM (SELECT * FROM metric WHERE video_id = ? "
-                   "ORDER BY ts DESC LIMIT ?) ORDER BY ts")
-            args = (int(video_id), int(limit))
-        return [dict(r) for r in self.conn.execute(sql, args)]
-
-    def videosUploadedSince(self, ts: int) -> list[dict]:
-        """Videos uploaded at or after `ts`."""
+    def overdue(self, now: int | None = None) -> list[dict]:
+        """Generated videos whose planned upload time has passed."""
+        now = int(now) if now is not None else _now()
         return [dict(r) for r in self.conn.execute(
-            "SELECT * FROM video WHERE upload_at IS NOT NULL AND upload_at >= ? "
-            "ORDER BY upload_at",
-            (int(ts),),
+            """SELECT * FROM video
+                WHERE status = ? AND plan_at IS NOT NULL AND plan_at <= ?
+                ORDER BY plan_at, id""",
+            (Status.GENERATED.value, now),
         )]
 
-    def totalSince(self, ts: int) -> dict:
-        """G = summed metrics over all snapshots taken at or after `ts`."""
-        row = self.conn.execute(
-            "SELECT COALESCE(SUM(views),0) v, COALESCE(SUM(comments),0) c, "
-            "COALESCE(SUM(likes),0) l FROM metric WHERE ts >= ?",
-            (int(ts),),
-        ).fetchone()
-        return {"views": row["v"], "comments": row["c"], "likes": row["l"]}
+    def task(self, now: int | None = None, lead_s: int = DEFAULT_LEAD_S,
+             open_target: int = 2) -> dict:
+        """One heartbeat decision: `upload` | `pipeline` | `plan` | `idle`.
+
+        Priority: upload (upload time passed) -> pipeline (entry due) -> plan
+        (queue too short). Everything that is also pending lands in `also`,
+        the matching payload in `entry` / `videos`.
+        """
+        now = int(now) if now is not None else _now()
+        open_n = self.openCount()
+        due = self.nextDue(now, lead_s)
+        over = self.overdue(now)
+
+        pending = []
+        if over:
+            pending.append("upload")
+        if due is not None:
+            pending.append("pipeline")
+        if open_n < int(open_target):
+            pending.append("plan")
+
+        out: dict = {
+            "action": pending[0] if pending else "idle",
+            "open": open_n,
+            "target": int(open_target),
+            "also": pending[1:],
+        }
+        if due is not None:
+            out["entry"] = due
+        if over:
+            out["videos"] = over
+        return out
 
     # ---- internals ------------------------------------------------------
 
