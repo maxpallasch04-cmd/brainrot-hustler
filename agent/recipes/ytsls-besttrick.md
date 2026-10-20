@@ -19,11 +19,12 @@ Trick, Reaktion und Bewertung in **max. 40 s**.
 
 ### Aufbau des Rohvideos
 In SLS-Competition-Videos gibt es ein schlankes, rechteckiges `Scoreboard`. Die
-Position ist über das gesamte Video **identisch**. Unterregionen:
-- `name` — Skater
-- `score` — enthält je nach Zeitpunkt SLS-Logo oder den Score des Tricks
+Position ist über das gesamte Video **identisch**. Es besitz folgende Unterregionen:
+- `name` — Meist Oberste Box. Name des Skaters, für welchen der Inhalt dieser ScoreBox gilt.
+- `score` — Direkt unter dem Namen, Enthält meistens ein Icon. Aktueller Trick Score erscheint hier, aber erst 15-20 sekunden nach dem Trick. 
 - `list` — Rangliste
-- Werbung/Info — ignorieren
+- Weitere Unterboxen können sein: Werbung, Icons, Übersichtsgrafiken.
+> Auch Rangliste und Übersichtgrafiken enthalten Scoreanzeigen, diese sind jedoch nicht die Bewertung des AKtuellen Tricks.
 
 ### Zeitlicher Ablauf des Rohvideos
 Meist zwei Segmente: erst **Lines**, anschließend **Best Trick**. Manchmal nur
@@ -39,8 +40,12 @@ eines von beiden.
   **Bewertung < 8 ausschließen.**
 - Sprache: Englisch.
 
+> Score **nie nur** aus dem Transkript ableiten. Gute Kanidaten aus dem Transcript per OCR auf > auf `boxes.score`  bestätigen.
+
+
 ### Konkrete Clip-Auswahl
 - **Länge:** **max. 40 s** — Anlauf + Trick + Landung + Reaktion + Bewertung.
+
 - **Start-Anker = Score-Einblendung Vorgänger**, per OCR auf der festen `boxes.score` erkennen,
   Run up startet oft Kurz danach, zusätzlich Transkript prüfen bei langen Feiern oder Replay auch erst später.
 - **End-Anker = Score-Einblendung** per OCR auf der festen `boxes.score`
@@ -68,17 +73,21 @@ eines von beiden.
 
 ### Clip-Schnitt (9:16)
 - Finales Format **9:16**, Höhe **≥ 1280**.
-- **Action-Bereich (`action`)**: **eine Box pro Clip**, die den Skater über alle
-  relevanten Kameras enthält — meist die Mitte. Die Box ist **9:16 in voller Quellhöhe**. 3–5 Frames aus dem Trickfenster prüfen; passt es nicht → Box **verschieben/vergrößern**
+- **Action-Bereich (`action`)**: **eine Box pro Clip** welche den Skater über alle relevanten Kameras enthält.
+- **Regel**: Höhe **immer maximale QuellHöhe**, Waagerecht verschieben, **nie** die Höhe beschneiden. (Bei h = 360 also `[x, 0, 202, 360]` )
 - **Scoreboard als Kachel in der Ecke**: die vertikale `scoreboard`-Box als
   Region mit `fit: contain`, `size` passend zur Kachel, `position` in eine freie
   Ecke, Breite ≈ 25–35 % der Ausgabe. **Kein Band oben, keine volle Breite.**
   `score` und `name` müssen vollständig lesbar sein; `list` nur, wenn Platz ist.
   `boxes.score` bleibt die OCR-Box.
-- **Fallback ohne Scoreboard:** nur `action`, füllt das Bild.
 - Action **`cover`**, Kachel **`contain`**;
 - **Keine zusätzliche Musik, Original-Audio behalten.**
 - Nicht relevant: Werbung, Logo, Informationsblock.
+
+### Bemerkungen
+- **Immer prüfen, wessen Scoreboard angezeigt wird.** Zwischen Tricks Wechselt das Scoreboard, klar erkennbar unter `name`-box mittel OCR.
+- Ansage (Transkript) und Anzeige (ScoreBaord) liegen **auseinander**.
+  Fenster so legen, dass Trick → Reaktion → Score-Slot im Bild sind; Ende mit etwa 3sekunden Puffer **nach** dem Frame mit der Zahl im Scoreboard, nicht davor.
 
 ## Ton / Titel / Beschreibung
 - Aus dem Transkript: **Trickname** und **Skater**.

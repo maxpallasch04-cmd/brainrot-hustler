@@ -271,7 +271,7 @@ openclaw approvals get --gateway
 
 # 6) Aufräumen: Repo-Rest weg, Workspace = nur die Agent-Dateien
 #    (.venv/ bleibt stehen!)
-rm -rf setup .git modules/requirements.txt README.md
+rm -rf setup .git modules/requirements.txt README.md modules/requirements.txt
 
 openclaw gateway restart
 ```
