@@ -29,6 +29,8 @@ import json
 import sys
 from pathlib import Path
 
+import brainrot_paths as paths
+
 from . import crops
 from . import download as dl
 from . import highlights as hl_k
@@ -135,7 +137,9 @@ def _candidate_windows(items) -> tuple[list[dict], list[str]]:
 
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="yt_clips")
-    p.add_argument("--db", default=None, help="DB path (default: data/brainrot.db)")
+    p.add_argument("--db", default=None, help="DB path (default: memory/brainrot.db)")
+    p.add_argument("--channel", default=None,
+                   help="Kanal-ID (default: $BRAINROT_CHANNEL)")
     sub = p.add_subparsers(dest="cmd", required=True)
 
     n = sub.add_parser("next", help="what to do next for one recipe: clip | find | download")
@@ -144,7 +148,8 @@ def main(argv: list[str] | None = None) -> int:
 
     d = sub.add_parser("download", help="download a video via yt-dlp")
     d.add_argument("--url", required=True)
-    d.add_argument("--out-dir", default=dl.DEFAULT_OUT_DIR)
+    d.add_argument("--out-dir", default=dl.DEFAULT_OUT_DIR,
+                   help="Zielordner (default: memory/<channel>/clips)")
     d.add_argument("--recipe", required=True, help="recipe name that picked this video")
     d.add_argument("--subs-lang", default=None, help="also fetch the transcript (e.g. 'en')")
     d.add_argument("--overwrite", action="store_true")
@@ -229,8 +234,9 @@ def main(argv: list[str] | None = None) -> int:
     sk.add_argument("--clip", type=int, required=True)
 
     args = p.parse_args(argv)
+    channel = args.channel or paths.channel(required=True)
 
-    with Store(args.db) as store:
+    with Store(args.db, channel=channel) as store:
         if args.cmd == "next":
             _dump(store.next_work(args.recipe))
         elif args.cmd == "download":

@@ -1,8 +1,9 @@
 """exec-friendly CLI over the long-term memory. JSON output.
 
 Run via the wrapper (works from any cwd):
-    ~/.openclaw/workspace-brainrothustler/bin/cli longterm_memory.cli <command> [args]
+    ~/.openclaw/workspace-brainrothustler/bin/cli longterm_memory.cli --channel sls <command>
 
+The channel can also come from ``BRAINROT_CHANNEL`` (the wrapper does that).
 Times (`--plan-at`, `--at`) accept either unix seconds or a local timestamp
 like ``2026-10-21 18:00``.
 """
@@ -13,7 +14,8 @@ import argparse
 import json
 from datetime import datetime
 
-from .memory import DEFAULT_LEAD_S, LongTermMemory, Status, VideoArt
+from . import db
+from .memory import LongTermMemory, Status, VideoArt
 
 
 def _dump(obj) -> None:
@@ -36,18 +38,60 @@ def _ts(value: str) -> int:
     )
 
 
+def _list(value: str) -> list[str]:
+    return [part.strip() for part in value.split(",") if part.strip()]
+
+
+def _channel(args, required: bool = True) -> str | None:
+    import brainrot_paths as paths
+
+    if args.channel:
+        value = paths.valid_channel(args.channel)
+    else:
+        value = paths.channel(required=required)
+    return value
+
+
+def _profile_args(p: argparse.ArgumentParser) -> None:
+    p.add_argument("--niche", default=None, help="Nische in einem Satz")
+    p.add_argument("--art", default=None, choices=[e.value for e in VideoArt])
+    p.add_argument("--recipes", type=_list, default=None,
+                   help="aktive Rezepte, kommasepariert")
+    p.add_argument("--open-target", type=int, default=None,
+                   help="wie viele offene Einträge es sein sollen")
+    p.add_argument("--lead-h", type=float, default=None,
+                   help="Vorlauf in Stunden")
+    p.add_argument("--quiet-start", default=None, help="Ruhezeit ab, z. B. 22:00")
+    p.add_argument("--quiet-end", default=None, help="Ruhezeit bis, z. B. 10:00")
+    p.add_argument("--tz", default=None, help="Zeitzone, z. B. Europe/Berlin")
+    p.add_argument("--format", default=None, help="Format, z. B. 9:16,1280")
+    p.add_argument("--r2-prefix", default=None,
+                   help="Key-Prefix im (geteilten) Bucket, z. B. brainrot/sls/")
+    p.add_argument("--recipients", type=_list, default=None,
+                   help="Empfänger-IDs, kommasepariert")
+    p.add_argument("--active", type=int, default=None, choices=[0, 1])
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="longterm_memory")
     p.add_argument("--db", default=None, help="DB path (default: memory/brainrot.db)")
+    p.add_argument("--channel", default=None,
+                   help="Kanal-ID (default: $BRAINROT_CHANNEL)")
     sub = p.add_subparsers(dest="cmd", required=True)
+
+    cs = sub.add_parser("channel-set", help="Kanalprofil anlegen/ändern")
+    _profile_args(cs)
+
+    cg = sub.add_parser("channel-get", help="Kanalprofil lesen")
+    sub.add_parser("channel-list", help="alle Kanäle")
 
     ap = sub.add_parser("add-plan", help="neuen Plan-Eintrag anlegen (status planned)")
     ap.add_argument("--idea", required=True, help="in einem Satz: was ist das Video")
     ap.add_argument("--recipe", required=True, help="Rezept-ID (recipes/<name>.md)")
     ap.add_argument("--plan-at", type=_ts, required=True,
                     help="geplante Uploadzeit (unix oder 'YYYY-MM-DD HH:MM')")
-    ap.add_argument("--art", default=VideoArt.YT_CLIP.value,
-                    choices=[e.value for e in VideoArt])
+    ap.add_argument("--art", default=None, choices=[e.value for e in VideoArt],
+                    help="Default: art des Kanalprofils")
     ap.add_argument("--theme", default="")
 
     g = sub.add_parser("generated", help="Render eintragen (status generated)")
@@ -67,16 +111,16 @@ def main(argv: list[str] | None = None) -> int:
     l.add_argument("--status", choices=[e.value for e in Status])
 
     n = sub.add_parser("nextdue", help="nächster fälliger Plan-Eintrag (planned)")
-    n.add_argument("--lead-h", type=float, default=DEFAULT_LEAD_S / 3600,
-                   help="Vorlauf in Stunden (Default 4)")
+    n.add_argument("--lead-h", type=float, default=None,
+                   help="Vorlauf in Stunden (Default: Kanalprofil)")
     n.add_argument("--now", type=_ts, default=None,
                    help="Bezugszeit (Default: jetzt, für Tests)")
 
     t = sub.add_parser("task", help="Heartbeat-Entscheidung: upload | pipeline | plan | idle")
-    t.add_argument("--open-target", type=int, default=2,
-                   help="wie viele offene Einträge es sein sollen (Default 2)")
-    t.add_argument("--lead-h", type=float, default=DEFAULT_LEAD_S / 3600,
-                   help="Vorlauf in Stunden (Default 4)")
+    t.add_argument("--open-target", type=int, default=None,
+                   help="offene Einträge (Default: Kanalprofil)")
+    t.add_argument("--lead-h", type=float, default=None,
+                   help="Vorlauf in Stunden (Default: Kanalprofil)")
     t.add_argument("--now", type=_ts, default=None,
                    help="Bezugszeit (Default: jetzt, für Tests)")
 
@@ -91,7 +135,29 @@ def main(argv: list[str] | None = None) -> int:
 
     args = p.parse_args(argv)
 
-    with LongTermMemory(args.db) as mem:
+    if args.cmd in ("channel-set", "channel-get", "channel-list"):
+        with db.init_db(args.db) as _conn:  # noqa: F841  (schema anlegen)
+            pass
+        conn = db.init_db(args.db)
+        try:
+            if args.cmd == "channel-list":
+                _dump(db.list_channels(conn))
+                return 0
+            cid = _channel(args)
+            if args.cmd == "channel-get":
+                _dump(db.get_channel(conn, cid))
+                return 0
+            fields = {k: v for k, v in vars(args).items()
+                      if k not in ("cmd", "db", "channel") and v is not None}
+            _dump(db.upsert_channel(conn, cid, **fields))
+        finally:
+            conn.close()
+        return 0
+
+    channel = _channel(args)
+    lead_h = args.lead_h if "lead_h" in args and args.lead_h is not None else None
+
+    with LongTermMemory(args.db, channel=channel) as mem:
         if args.cmd == "add-plan":
             _dump({"id": mem.addPlan(args.idea, args.recipe, args.plan_at,
                                      art=args.art, theme=args.theme)})
@@ -105,11 +171,13 @@ def main(argv: list[str] | None = None) -> int:
         elif args.cmd == "list-videos":
             _dump(mem.listVideos(args.status))
         elif args.cmd == "nextdue":
-            _dump(mem.nextDue(args.now, int(args.lead_h * 3600)))
+            _dump(mem.nextDue(args.now, None if lead_h is None else int(lead_h * 3600)))
         elif args.cmd == "task":
-            _dump(mem.task(args.now, int(args.lead_h * 3600), args.open_target))
+            _dump(mem.task(args.now,
+                           None if lead_h is None else int(lead_h * 3600),
+                           args.open_target))
         elif args.cmd == "open-count":
-            _dump({"open": mem.openCount()})
+            _dump({"channel": mem.channel, "open": mem.openCount()})
         elif args.cmd == "overdue":
             _dump(mem.overdue(args.now))
         elif args.cmd == "upload":

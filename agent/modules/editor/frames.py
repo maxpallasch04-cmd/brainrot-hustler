@@ -5,18 +5,22 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+import brainrot_paths as paths
+
 from .probe import ProbeError, ffmpeg_exe, probe
 from .spec import even
 
 
-def frames(path, times=None, *, count: int | None = None, out_dir: str = "memory/screenshots",
+def frames(path, times=None, *, count: int | None = None, out_dir: str | None = None,
            prefix: str | None = None, width: int | None = None) -> list[dict]:
     """PNGs aus einem Video schneiden.
 
     `times`: explizite Sekunden. Sonst `count` gleichmäßig verteilte Frames
-    (Default 4) — über das Video verteilt, nicht am Anfang. `width` skaliert
-    herunter (Seitenverhältnis bleibt). Rückgabe: `[{'t', 'path', 'size'}]`.
+    (Default 4) - über das Video verteilt, nicht am Anfang. `width` skaliert
+    herunter (Seitenverhältnis bleibt). `out_dir` default: `memory/<channel>/screenshots`
+    (ohne Kanal: `memory/screenshots`). Rückgabe: `[{'t', 'path', 'size'}]`.
     """
+    out_dir = out_dir or str(paths.channel_dir("screenshots"))
     info = probe(path)
     duration = float(info.get("duration") or 0.0)
 

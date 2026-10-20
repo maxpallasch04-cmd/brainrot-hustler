@@ -3,17 +3,15 @@
 #
 # Aktiviert die Workspace-venv und ruft ein Modul-CLI auf. Arbeitsverzeichnis
 # ist der **Workspace-Root**: relative Pfade beziehen sich damit auf
-# memory/videos, memory/clips, memory/screenshots, memory/brainrot.db.
-# `modules/` liegt nur noch auf dem PYTHONPATH (dort ist der Code).
+# memory/<channel>/. `modules/` liegt auf dem PYTHONPATH (dort ist der Code).
 #
-# Die Exec-Policy bindet nur dieses Skript (kein `source`-Operand, kein
-# Interpreter-Pfad als erstes Token).
+# Der Kanal wird als `--channel <id>` an beliebiger Stelle übergeben; der
+# Wrapper exportiert ihn als BRAINROT_CHANNEL und entfernt das Flag aus argv
+# (so bleibt die exec-Allowlist unverändert und jedes Modul sieht ihn).
 #
 # Nutzung (aus beliebigem cwd):
-#   ~/.openclaw/workspace-brainrothustler/bin/cli <modul.cli> [args...]
-# Beispiel:
-#   ~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli next
-#   ~/.openclaw/workspace-brainrothustler/bin/cli editor.cli probe --in memory/videos/out.mp4
+#   ~/.openclaw/workspace-brainrothustler/bin/cli --channel sls longterm_memory.cli task
+#   ~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli --channel sls next --recipe ytsls-besttrick
 #
 set -euo pipefail
 
@@ -28,10 +26,34 @@ source "$VENV/bin/activate"
 export PYTHONPATH="$MODULES${PYTHONPATH:+:$PYTHONPATH}"
 cd "$ROOT"
 
-if [ "$#" -eq 0 ]; then
-  echo "usage: cli <modul.cli> [args...]" >&2
+# `--channel <id>` / `--channel=<id>` aus argv ziehen -> BRAINROT_CHANNEL.
+args=()
+i=0
+while [ "$i" -lt "$#" ]; do
+  i=$((i + 1))
+  arg="${!i}"
+  case "$arg" in
+    --channel)
+      i=$((i + 1))
+      if [ "$i" -gt "$#" ]; then
+        echo "error: --channel needs a value" >&2
+        exit 2
+      fi
+      export BRAINROT_CHANNEL="${!i}"
+      ;;
+    --channel=*)
+      export BRAINROT_CHANNEL="${arg#--channel=}"
+      ;;
+    *)
+      args+=("$arg")
+      ;;
+  esac
+done
+
+if [ "${#args[@]}" -eq 0 ]; then
+  echo "usage: cli [--channel <id>] <modul.cli> [args...]" >&2
   echo "module: editor.cli hosting.cli longterm_memory.cli yt_clips.cli" >&2
   exit 2
 fi
 
-exec python3 -m "$@"
+exec python3 -m "${args[@]}"

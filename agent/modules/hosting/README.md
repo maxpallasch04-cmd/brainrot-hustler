@@ -12,8 +12,22 @@ Zugänge aus dem **OpenClaw-Team-Store** (Kind `env`, siehe `TOOLS.md`). Kein
 anonymer Host, kein Fallback.
 
 Nach jedem Upload wird **aufgeräumt**: nur die neuesten `R2_KEEP` Objekte bleiben
-(Default 1), die Gesamtgröße bleibt unter `R2_QUOTA_GB` (Default 10). Löschen ist
-gratis und läuft in einem einzigen Bulk-Request.
+(Default 1), die Gesamtgröße bleibt unter `R2_QUOTA_GB` (Default 10). Gelöscht
+wird nur **innerhalb des eigenen Prefix** - Kanäle löschen sich nicht gegenseitig.
+Löschen ist gratis und läuft in einem einzigen Bulk-Request.
+
+## Kanäle: ein Bucket, ein Prefix pro Kanal
+
+Alle Kanäle teilen sich Bucket und Zugänge (keine zweite `.env`, kein zweites
+Token). Getrennt wird ausschließlich über den Key-Prefix:
+
+- `BRAINROT_CHANNEL` gesetzt (macht der Wrapper via `--channel`) → Prefix aus dem
+  Kanalprofil (`r2_prefix`, Default `brainrot/<id>/`).
+- `R2_PREFIX` gesetzt → gewinnt immer (manueller Override).
+- Nichts gesetzt → alter Default `videos/`.
+
+Dadurch gilt `R2_KEEP` **pro Kanal**: ein Upload von Kanal A löscht nicht das
+Video von Kanal B.
 
 ## CLI
 
@@ -41,8 +55,8 @@ kein Fallback-Loader.
 
 Pflicht: `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`,
 `R2_PUBLIC_BASE_URL` (r2.dev-Subdomain oder eigene Domain).
-Optional: `R2_ENDPOINT`, `R2_PREFIX` (Default `videos/`), `R2_KEEP` (Default 1),
-`R2_QUOTA_GB` (Default 10).
+Optional: `R2_ENDPOINT`, `R2_PREFIX` (Default `videos/`, überschreibt den
+Profil-Prefix), `R2_KEEP` (Default 1), `R2_QUOTA_GB` (Default 10).
 Braucht `boto3` (`pip install -r modules/requirements.txt`). Fehler werfen
 `hosting.R2Error` (fehlende Config, boto3 fehlt, Bucket-Fehler).
 

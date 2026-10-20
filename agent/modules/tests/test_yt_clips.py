@@ -25,6 +25,15 @@ from yt_clips import motion  # noqa: E402
 from yt_clips import ocr  # noqa: E402
 from yt_clips.cli import _candidate_windows, main as yt_main  # noqa: E402
 from yt_clips.store import Store  # noqa: E402
+from longterm_memory import db as ltm  # noqa: E402
+
+
+def make_store(path) -> Store:
+    """Store für den Test-Kanal 'sls' (Profil-Zeile wird mit angelegt)."""
+    conn = ltm.init_db(path)
+    ltm.upsert_channel(conn, "sls")
+    conn.close()
+    return Store(path, channel="sls")
 
 
 class YoutubeIdTest(unittest.TestCase):
@@ -40,7 +49,7 @@ class YoutubeIdTest(unittest.TestCase):
 class StoreTest(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
-        self.store = Store(self.tmp / "t.db")
+        self.store = make_store(self.tmp / "t.db")
 
     def tearDown(self):
         self.store.close()
@@ -158,7 +167,7 @@ class HighlightsTest(unittest.TestCase):
                          sorted(c["start"] for c in cands))
 
     def test_chapters_roundtrip(self):
-        store = Store(self.tmp / "t.db")
+        store = make_store(self.tmp / "t.db")
         try:
             sid = store.add_source("u", ext_id="ch", path="x.mp4",
                                    chapters=[{"start_time": 1.0, "title": "X"}])
@@ -255,7 +264,7 @@ class CandidateWindowTest(unittest.TestCase):
 
 class SegmentRenderTest(unittest.TestCase):
     def test_segments_span_and_store(self):
-        store = Store(Path(tempfile.mkdtemp()) / "t.db")
+        store = make_store(Path(tempfile.mkdtemp()) / "t.db")
         try:
             sid = store.add_source("u", ext_id="seg", path="x.mp4")
             cid = store.add_candidates(sid, [{

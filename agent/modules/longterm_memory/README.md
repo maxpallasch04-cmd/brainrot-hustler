@@ -1,26 +1,59 @@
 # longterm_memory
 
-> **Aufruf:** `~/.openclaw/workspace-brainrothustler/bin/cli longterm_memory.cli <cmd> <args>`
+> **Aufruf:** `~/.openclaw/workspace-brainrothustler/bin/cli --channel <id> longterm_memory.cli <cmd> <args>`
 > (Workspace-Wrapper, siehe `TOOLS.md`) - aus jedem cwd, venv wird automatisch aktiviert.
 
-Der Contentplan **und** das Gedächtnis des Kanals in einer Tabelle: ein Eintrag
-pro Video, von der Idee bis zum Upload.
+Der Contentplan **und** das Gedächtnis des Kanals in einer Tabelle, plus die
+Kanalprofile. Ein Eintrag pro Video, von der Idee bis zum Upload.
 
 ```
 planned  --generated-->  generated  --upload-->  uploaded
 ```
 
-Es gibt keine `contentplan.md` mehr - die DB ist die Warteschlange.
+Es gibt keine `contentplan.md` - die DB ist die Warteschlange.
 DB-Pfad: `memory/brainrot.db` (überschreibbar mit `BRAINROT_DB`).
+
+## Kanal ist Pflicht
+
+Jede Instanz gehört genau einem Kanal:
+
+```python
+mem = LongTermMemory(channel="sls")      # ohne channel -> Fehler
+mem.profile                              # Kanalprofil als dict
+```
+
+Eine DB, alle Kanäle, Spalte `video.channel_id`. Jede Query filtert hart - ein
+Video von Kanal A ist für Kanal B nicht sichtbar (`KeyError`).
+
+## Kanalprofil (`channel`-Tabelle)
 
 | Feld | Bedeutung |
 | ---- | --------- |
+| `id` | Kanal-ID (`sls`, `a-z0-9-_`, max. 32) |
+| `niche` | Nische in einem Satz |
+| `art` | Standard-Videoart (`YT-Clip` \| `Twitch-Clip` \| `Selbstgeneriert`) |
+| `recipes` | aktive Rezepte (JSON-Liste) - andere `add-plan`s werden abgelehnt |
+| `open_target` | wie viele offene Einträge es sein sollen (Default 2) |
+| `lead_h` | Vorlauf in Stunden, ab dem generiert wird (Default 4) |
+| `quiet_start` / `quiet_end` | Ruhezeit (`22:00` / `10:00`), leer = keine |
+| `tz` | Zeitzone der Ruhezeit (`Europe/Berlin`) |
+| `format` | Zielformat (`9:16,1280`) |
+| `r2_prefix` | Key-Prefix im geteilten Bucket (Default `brainrot/<id>/`) |
+| `recipients` | Empfänger der Meldungen (JSON-Liste) |
+
+`addPlan` prüft **gegen das Profil**: Rezept muss aktiv sein, `plan_at` darf nicht
+in der Ruhezeit liegen. `task` nimmt `open_target` und `lead_h` aus dem Profil.
+
+## Video-Felder
+
+| Feld | Bedeutung |
+| ---- | --------- |
+| `channel_id` | Kanal |
 | `idea` | ein Satz: was ist das Video (aus der Planung) |
 | `title` | finaler Titel (erst ab `generated`) |
 | `description` | Caption fürs Upload (erst ab `generated`) |
-| `art` | `Selbstgeneriert` \| `Twitch-Clip` \| `YT-Clip` |
-| `recipe` | Rezept-ID (`recipes/<name>.md`) |
-| `file` | Pfad zur fertigen mp4 (`memory/videos/...`), `NULL` bis gerendert |
+| `art`, `recipe`, `theme` | Art, Rezept-ID, Thema |
+| `file` | Pfad zur mp4 (`memory/<channel>/videos/...`), `NULL` bis gerendert |
 | `len_s` | Länge in Sekunden, `0` bis gerendert |
 | `plan_at` | **geplante** Uploadzeit (Unix) |
 | `upload_at` | tatsächliche Uploadzeit (Unix), `NULL` bis hochgeladen |
@@ -29,48 +62,55 @@ DB-Pfad: `memory/brainrot.db` (überschreibbar mit `BRAINROT_DB`).
 ## Python-API
 
 ```python
-from longterm_memory import LongTermMemory, VideoArt
+from longterm_memory import LongTermMemory
 
-mem = LongTermMemory()
+mem = LongTermMemory(channel="sls")
 vid = mem.addPlan("Best Trick, Score 9.10", "ytsls-besttrick", plan_at=1793000000)
 mem.markGenerated(vid, title="Insane 9.10 Best Trick", description="...",
-                  file="memory/videos/besttrick.mp4", len_s=31)
+                  file="memory/sls/videos/besttrick.mp4", len_s=31)
 mem.upload(vid)                 # -> uploaded, setzt upload_at (idempotent)
-mem.nextDue()                   # nächster fälliger planned-Eintrag (4 h Vorlauf)
-mem.task()                      # Heartbeat: {'action': 'upload'|'pipeline'|'plan'|'idle', ...}
+mem.task()                      # {'action': 'upload'|'pipeline'|'plan'|'idle', ...}
+mem.nextDue()                   # nächster fälliger planned-Eintrag
 mem.openCount()                 # planned + generated
 mem.overdue()                   # generated, Uploadzeit vorbei
 ```
 
 | Methode | Zweck |
 | ------- | ----- |
-| `addPlan(idea, recipe, plan_at, art=..., theme="")` | Plan-Eintrag anlegen (`planned`) → id |
+| `addPlan(idea, recipe, plan_at, art=None, theme="")` | Plan-Eintrag anlegen (`planned`) → id; validiert gegen Profil |
 | `markGenerated(id, *, title, description, file, len_s, art=None, theme=None)` | Render eintragen (`generated`) |
 | `upload(id, at=None)` | als `uploaded` markieren, `upload_at` setzen (idempotent) |
 | `getVideo(id)` / `listVideos(status=None)` | lesen, nach `plan_at` sortiert |
 | `openCount()` | offene Einträge (`planned` + `generated`) |
-| `nextDue(now=None, lead_s=14400)` | nächster fälliger `planned`-Eintrag oder `None` |
+| `nextDue(now=None, lead_s=None)` | nächster fälliger `planned`-Eintrag oder `None` |
 | `overdue(now=None)` | `generated`, deren Uploadzeit vorbei ist |
-| `task(now=None, lead_s=14400, open_target=2)` | eine Heartbeat-Entscheidung: `upload` \| `pipeline` \| `plan` \| `idle` |
+| `task(now=None, lead_s=None, open_target=None)` | eine Heartbeat-Entscheidung: `upload` \| `pipeline` \| `plan` \| `idle` |
 
 ## CLI
 
 ```
-bin/cli longterm_memory.cli task [--open-target 2] [--lead-h 4]
-bin/cli longterm_memory.cli add-plan --idea "..." --recipe ytsls-besttrick --plan-at "2026-10-21 18:00"
-bin/cli longterm_memory.cli nextdue [--lead-h 4]
-bin/cli longterm_memory.cli open-count
-bin/cli longterm_memory.cli generated 1 --title "..." --file memory/videos/x.mp4 --len-s 31 [--description "..."]
-bin/cli longterm_memory.cli overdue
-bin/cli longterm_memory.cli upload 1 [--at "2026-10-21 18:05"]
-bin/cli longterm_memory.cli get-video 1
-bin/cli longterm_memory.cli list-videos [--status planned|generated|uploaded]
+bin/cli --channel sls longterm_memory.cli task [--open-target 2] [--lead-h 4]
+bin/cli --channel sls longterm_memory.cli add-plan --idea "..." --recipe ytsls-besttrick --plan-at "2026-10-21 18:00"
+bin/cli --channel sls longterm_memory.cli nextdue [--lead-h 4]
+bin/cli --channel sls longterm_memory.cli open-count
+bin/cli --channel sls longterm_memory.cli generated 1 --title "..." --file memory/sls/videos/x.mp4 --len-s 31
+bin/cli --channel sls longterm_memory.cli overdue
+bin/cli --channel sls longterm_memory.cli upload 1 [--at "2026-10-21 18:05"]
+bin/cli --channel sls longterm_memory.cli get-video 1
+bin/cli --channel sls longterm_memory.cli list-videos [--status planned|generated|uploaded]
+
+# Profile (channel-set/get brauchen --channel)
+bin/cli longterm_memory.cli channel-list
+bin/cli --channel sls longterm_memory.cli channel-get
+bin/cli --channel sls longterm_memory.cli channel-set --niche "Skate comps" \
+    --recipes ytsls-besttrick,ytsls-bestline --open-target 2 --lead-h 4 \
+    --quiet-start 22:00 --quiet-end 10:00 --tz Europe/Berlin
 ```
 
 `task` ist der Herzstück-Befehl für den Heartbeat - eine Antwort, eine Aktion:
 
 ```json
-{"action": "pipeline", "open": 2, "target": 2, "also": [], "entry": {"id": 3, "idea": "...", ...}}
+{"channel": "sls", "action": "pipeline", "open": 2, "target": 2, "also": [], "entry": {"id": 3, ...}}
 ```
 
 Priorität: `upload` → `pipeline` → `plan` → `idle`. Zusätzlich Anstehendes steht in
@@ -80,7 +120,6 @@ Zeiten: Unix-Sekunden **oder** lokal `YYYY-MM-DD HH:MM`. Alle Befehle geben JSON
 
 ## Migration
 
-Alte DBs (v1: `Created`/`Uploaded`, `metric`-Tabelle) werden beim Öffnen
-automatisch angepasst: fehlende Spalten kommen dazu, `Created` → `generated`,
-`Uploaded` → `uploaded`, `metric` wird entfernt. Nicht-destruktiv, keine Daten
-gehen verloren.
+Alte DBs werden beim Öffnen automatisch angepasst: fehlende Spalten kommen dazu,
+`Created` → `generated`, `Uploaded` → `uploaded`, `metric` wird entfernt. Der
+**erste** angelegte Kanal übernimmt Alt-Daten ohne `channel_id`. Nicht-destruktiv.

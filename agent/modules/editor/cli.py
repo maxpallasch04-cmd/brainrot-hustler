@@ -66,7 +66,8 @@ def main(argv: list[str] | None = None) -> int:
     fr.add_argument("--at", default=None,
                    help="Sekunden, kommasepariert (Default: --count gleichmäßig)")
     fr.add_argument("--count", type=int, default=4, help="Anzahl (Default 4)")
-    fr.add_argument("--out-dir", default="memory/screenshots")
+    fr.add_argument("--out-dir", default=None,
+                   help="Zielordner (default: memory/<channel>/screenshots)")
     fr.add_argument("--width", type=int, default=None, help="herunterskalieren")
     fr.add_argument("--prefix", default=None, help="Dateinamen-Prefix")
     fr.add_argument("--pretty", action="store_true", help="JSON einrücken")

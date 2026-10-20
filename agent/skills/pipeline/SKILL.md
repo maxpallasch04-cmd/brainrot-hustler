@@ -8,11 +8,14 @@ description: "Führt die komplette Content-Pipeline aus: Plan-Eintrag → Rezept
 Führt genau einen Eintrag aus der Datenbank von Anfang bis Ende aus. Der Eintrag
 ist bereits präzise (Idee + Rezept) - hier wird nur ausgeführt, keine Idee erfunden.
 
+**Kanal:** jeder Aufruf braucht `--channel <id>` (kommt im Heartbeat aus `task`).
+Danach liegen alle Dateien unter `memory/<channel>/`.
+
 ## Ablauf
 
 1. **Plan-Eintrag holen.** Die DB ist die Warteschlange, es gibt keine Datei:
    ```
-   ~/.openclaw/workspace-brainrothustler/bin/cli longterm_memory.cli nextdue
+   ~/.openclaw/workspace-brainrothustler/bin/cli --channel <id> longterm_memory.cli nextdue
    ```
    Liefert `id`, `idea`, `recipe`, `plan_at`, `art` - oder `null` (nichts fällig).
    Im Heartbeat kommt der Eintrag direkt aus `task` (`action: pipeline`, Feld `entry`).
@@ -26,7 +29,7 @@ ist bereits präzise (Idee + Rezept) - hier wird nur ausgeführt, keine Idee erf
    | `YT-Clip` | `ytclip` |
 
    Passt kein Skill zum `art` des Rezepts → **stoppen**, melden, nicht improvisieren.
-   - Ergebnis: **eine `.mp4`** unter `memory/videos/`.
+   - Ergebnis: **eine `.mp4`** unter `memory/<channel>/videos/`.
    - Ein Skill darf **pausieren** (z. B. auf einen asynchronen Task warten oder
      eine Bestätigung brauchen) - dann hier später fortsetzen, nicht neu starten.
    - Liefert der Skill **Kontext** (Quelle, Zeitfenster, die Idee …), nimm ihn in
@@ -35,21 +38,22 @@ ist bereits präzise (Idee + Rezept) - hier wird nur ausgeführt, keine Idee erf
    auf den Kontext aus Schritt 3.
 5. **Video hosten.**
    ```
-   ~/.openclaw/workspace-brainrothustler/bin/cli hosting.cli upload --file memory/videos/<name>.mp4
+   ~/.openclaw/workspace-brainrothustler/bin/cli --channel <id> hosting.cli upload --file memory/<channel>/videos/<name>.mp4
    ```
-   Die `url` aus dem JSON parsen. Nach dem Upload bleibt nur das neueste Video im
-   Bucket (`R2_KEEP`) - der Link aus dem vorherigen Lauf ist danach weg.
+   Die `url` aus dem JSON parsen. Der Bucket ist für alle Kanäle derselbe; getrennt
+   wird nur über `r2_prefix` aus dem Profil. Innerhalb des Prefix bleibt nur das
+   neueste Video (`R2_KEEP`) - der Link aus dem vorherigen Lauf ist danach weg.
 6. **Eintrag erfassen + markieren.** Erst messen, dann in der DB als *generiert*
    eintragen - der Eintrag bleibt offen, bis er hochgeladen ist.
    ```
-   ~/.openclaw/workspace-brainrothustler/bin/cli editor.cli probe --in memory/videos/<name>.mp4   # 9:16, Höhe = 1280, Länge
-   ~/.openclaw/workspace-brainrothustler/bin/cli longterm_memory.cli generated <id> \
-       --title "<t>" --description "<d>" --file memory/videos/<name>.mp4 --len-s <s> [--theme "<theme>"]
+   ~/.openclaw/workspace-brainrothustler/bin/cli --channel <id> editor.cli probe --in memory/<channel>/videos/<name>.mp4   # 9:16, Höhe = 1280, Länge
+   ~/.openclaw/workspace-brainrothustler/bin/cli --channel <id> longterm_memory.cli generated <id> \
+       --title "<t>" --description "<d>" --file memory/<channel>/videos/<name>.mp4 --len-s <s> [--theme "<theme>"]
    ```
    Die `id` aus Schritt 1 verwenden - kein neuer Eintrag, kein Duplikat.
    Kontext aus Schritt 3 (z. B. Quelle/Zeitfenster) in `--description` mitführen.
 7. **Melden.** Eine Telegram-Nachricht mit Video-Link, Titel, Beschreibung und
-   geplanter Uploadzeit. Geht an die registrierten Nutzer.
+   geplanter Uploadzeit. Geht an die `recipients` des Kanalprofils.
 
 ## Hinweise
 
@@ -57,3 +61,4 @@ ist bereits präzise (Idee + Rezept) - hier wird nur ausgeführt, keine Idee erf
   sonst überschreiben sich die gehosteten Links (`R2_KEEP=1`).
 - Der eigentliche Upload wird von der Upload-Erinnerung erledigt, nicht hier.
 - Nach erfolgreichem Upload: `longterm_memory.cli upload <id>` (Status `uploaded`).
+- Nichts in `modules/` ablegen - dort ist nur Code.

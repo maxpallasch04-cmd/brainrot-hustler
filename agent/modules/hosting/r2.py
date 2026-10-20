@@ -60,14 +60,39 @@ def _env_number(name: str, default, cast):
         return default
 
 
+def _channel_prefix(channel_id: str) -> str:
+    """Storage prefix of a channel: profile value, else ``brainrot/<id>/``.
+
+    The bucket is shared by all channels; only the key prefix separates them.
+    """
+    try:
+        import brainrot_paths as paths  # noqa: F401  (side-effect free)
+        from longterm_memory import db as ltm
+
+        conn = ltm.init_db()
+        try:
+            profile = ltm.get_channel(conn, channel_id)
+        finally:
+            conn.close()
+        if profile and profile.get("r2_prefix"):
+            return str(profile["r2_prefix"])
+    except Exception:  # no DB / no module -> sane default, never block an upload
+        pass
+    return f"brainrot/{channel_id}/"
+
+
 def config() -> dict:
     """Read and validate the R2 configuration from the environment."""
     missing = [name for name in REQUIRED if not _env(name)]
     if missing:
         raise R2Error("missing R2 config: " + ", ".join(missing)
-                      + " — set the R2_* env vars (OpenClaw store/env, see TOOLS.md)")
+                      + " - set the R2_* env vars (OpenClaw store/env, see TOOLS.md)")
     account = _env("R2_ACCOUNT_ID")
-    prefix = (_env("R2_PREFIX") or DEFAULT_PREFIX).strip("/")
+    prefix = _env("R2_PREFIX")
+    if not prefix:
+        channel_id = _env("BRAINROT_CHANNEL")
+        prefix = _channel_prefix(channel_id) if channel_id else DEFAULT_PREFIX
+    prefix = (prefix or "").strip("/")
     return {
         "endpoint": _env("R2_ENDPOINT") or f"https://{account}.r2.cloudflarestorage.com",
         "access_key_id": _env("R2_ACCESS_KEY_ID"),

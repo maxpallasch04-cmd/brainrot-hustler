@@ -15,7 +15,10 @@ import re
 import shutil
 from pathlib import Path
 
-DEFAULT_OUT_DIR = "memory/clips"
+import brainrot_paths as paths
+
+#: Default download target: ``memory/<channel>/clips`` (see brainrot_paths).
+DEFAULT_OUT_DIR = None
 
 
 def default_cookies_file() -> Path:
@@ -143,6 +146,7 @@ def download(url: str, out_dir=DEFAULT_OUT_DIR, *, overwrite=False, quiet=True,
     ``subs_lang`` (e.g. ``"en"``) also fetches the transcript (auto-captions,
     VTT) and returns its path as ``subs``.
     """
+    out_dir = out_dir or paths.channel_dir("clips")
     try:
         import yt_dlp
     except ImportError as exc:  # pragma: no cover - depends on host

@@ -1,6 +1,6 @@
 # yt_clips
 
-> **Aufruf:** `~/.openclaw/workspace-brainrothustler/bin/cli <modul>.cli <args>`
+> **Aufruf:** `~/.openclaw/workspace-brainrothustler/bin/cli --channel <id> <modul>.cli <args>`
 > (Workspace-Wrapper, siehe `TOOLS.md`) — aus jedem cwd, venv wird automatisch aktiviert.
 
 State + Ablauf für die **YT-Clip**-Art: ein langes YouTube-Video (Sport) wird in
@@ -15,8 +15,9 @@ Kandidaten, Status, Analyse.
   mehr zu clippen.
 - `yt_clip.status`: `Candidate` → `Used` / `Skipped`.
 
-Der Zustand liegt in `data/brainrot.db` (`BRAINROT_DB`), Tabellen `yt_source` +
-`yt_clip` (geteilt mit `longterm_memory`).
+Der Zustand liegt in `memory/brainrot.db` (`BRAINROT_DB`), Tabellen `yt_source` +
+`yt_clip` (geteilt mit `longterm_memory`). Jede Zeile gehört einem Kanal
+(`yt_source.channel_id`); ein `Store` ohne `channel=` startet nicht.
 
 ## Rezept als Queue-Schlüssel
 
@@ -35,29 +36,29 @@ damit kein Video ohne Marker in der DB landet. `list --recipe` filtert die
 ## CLI
 
 ```
-~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli next --recipe <name>             # clip | find | download, pro Rezept
-~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli download --url <url> --out-dir clips --recipe <name> [--subs-lang en]
-~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli recipe-set --source <id> --recipe <name>   # Marker nachtragen
-~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli highlights --source 3 --top 10 --add   # Kapitel + Audio-Peaks
-~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli crop-frame --in frames/<bild>.png --box <box> --out sb.png --scale 2
-~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli boxes-set --source 3 --json boxes.json   # Messung, pro Video
-~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli boxes-get --source 3
-~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli motion --clip 5
-~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli motion --source 3 --from 300 --to 360
-~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli ocr --clip 5 --box 1200,80,180,90 --step 1
-~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli ocr --source 3 --box 1200,80,180,90 --from 300 --to 340 --step 1
-~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli candidates-add --source 3 --json cands.json
-~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli candidates-list --source 3 [--status Candidate]
-~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli used --clip 5 [--video-id 12]    # nach dem Render
-~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli skip --clip 5
-~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli list [--recipe <name>]
+~/.openclaw/workspace-brainrothustler/bin/cli --channel <id> yt_clips.cli next --recipe <name>             # clip | find | download, pro Rezept
+~/.openclaw/workspace-brainrothustler/bin/cli --channel <id> yt_clips.cli download --url <url> --out-dir clips --recipe <name> [--subs-lang en]
+~/.openclaw/workspace-brainrothustler/bin/cli --channel <id> yt_clips.cli recipe-set --source <id> --recipe <name>   # Marker nachtragen
+~/.openclaw/workspace-brainrothustler/bin/cli --channel <id> yt_clips.cli highlights --source 3 --top 10 --add   # Kapitel + Audio-Peaks
+~/.openclaw/workspace-brainrothustler/bin/cli --channel <id> yt_clips.cli crop-frame --in memory/<channel>/screenshots/<bild>.png --box <box> --out memory/<channel>/screenshots/sb.png --scale 2
+~/.openclaw/workspace-brainrothustler/bin/cli --channel <id> yt_clips.cli boxes-set --source 3 --json boxes.json   # Messung, pro Video
+~/.openclaw/workspace-brainrothustler/bin/cli --channel <id> yt_clips.cli boxes-get --source 3
+~/.openclaw/workspace-brainrothustler/bin/cli --channel <id> yt_clips.cli motion --clip 5
+~/.openclaw/workspace-brainrothustler/bin/cli --channel <id> yt_clips.cli motion --source 3 --from 300 --to 360
+~/.openclaw/workspace-brainrothustler/bin/cli --channel <id> yt_clips.cli ocr --clip 5 --box 1200,80,180,90 --step 1
+~/.openclaw/workspace-brainrothustler/bin/cli --channel <id> yt_clips.cli ocr --source 3 --box 1200,80,180,90 --from 300 --to 340 --step 1
+~/.openclaw/workspace-brainrothustler/bin/cli --channel <id> yt_clips.cli candidates-add --source 3 --json cands.json
+~/.openclaw/workspace-brainrothustler/bin/cli --channel <id> yt_clips.cli candidates-list --source 3 [--status Candidate]
+~/.openclaw/workspace-brainrothustler/bin/cli --channel <id> yt_clips.cli used --clip 5 [--video-id 12]    # nach dem Render
+~/.openclaw/workspace-brainrothustler/bin/cli --channel <id> yt_clips.cli skip --clip 5
+~/.openclaw/workspace-brainrothustler/bin/cli --channel <id> yt_clips.cli list [--recipe <name>]
 ```
 
 Rendern läuft über `editor`:
 
 ```
-~/.openclaw/workspace-brainrothustler/bin/cli editor.cli validate --spec clips/<name>.json
-~/.openclaw/workspace-brainrothustler/bin/cli editor.cli render   --spec clips/<name>.json
+~/.openclaw/workspace-brainrothustler/bin/cli --channel <id> editor.cli validate --spec memory/<channel>/specs/<name>.json
+~/.openclaw/workspace-brainrothustler/bin/cli --channel <id> editor.cli render   --spec memory/<channel>/specs/<name>.json --out memory/<channel>/videos/<name>.mp4
 ```
 
 Alle Befehle geben JSON aus. `--db <pfad>` überschreibt die DB (vor das Subkommando).
@@ -102,8 +103,8 @@ Die Unterboxen aus der Vision (`score`, `name`, `list` …) liegen **einmal pro
 Quelle** im Store — kanonisch, in Quellkoordinaten:
 
 ```
-~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli boxes-set --source 3 --json boxes.json
-~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli boxes-get --source 3
+~/.openclaw/workspace-brainrothustler/bin/cli --channel <id> yt_clips.cli boxes-set --source 3 --json boxes.json
+~/.openclaw/workspace-brainrothustler/bin/cli --channel <id> yt_clips.cli boxes-get --source 3
 ```
 
 `next`/`list` geben die Boxen als `boxes` mit aus. Die **Spec kopiert**, was sie
@@ -163,8 +164,8 @@ Bildinhalte).
 **0.0–10.0** aus. Leere Frames werden ignoriert — kein Vision-Modell.
 
 ```
-~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli ocr --clip 5 --box 1200,80,180,90 --step 1
-~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli ocr --source 3 --box 1200,80,180,90 --from 300 --to 340 --step 1
+~/.openclaw/workspace-brainrothustler/bin/cli --channel <id> yt_clips.cli ocr --clip 5 --box 1200,80,180,90 --step 1
+~/.openclaw/workspace-brainrothustler/bin/cli --channel <id> yt_clips.cli ocr --source 3 --box 1200,80,180,90 --from 300 --to 340 --step 1
 ```
 
 - `--box` ist die Score-Box in **Quellkoordinaten** (`boxes.score` aus der Spec).
@@ -185,8 +186,8 @@ verkleinert und als Graustufen-Differenz verglichen. Ausgabe:
 Bewegungsphasen).
 
 ```
-~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli motion --source 3 --from 300 --to 360
-~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli motion --clip 5
+~/.openclaw/workspace-brainrothustler/bin/cli --channel <id> yt_clips.cli motion --source 3 --from 300 --to 360
+~/.openclaw/workspace-brainrothustler/bin/cli --channel <id> yt_clips.cli motion --clip 5
 ```
 
 Der **Start-Anker ist `first_motion`** (minus ~2 s Anlauf), nicht die Ansage und

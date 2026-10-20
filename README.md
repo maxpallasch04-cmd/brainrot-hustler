@@ -50,11 +50,8 @@ Ergebnis (Endzustand):
 ├── assets/
 ├── bin/            ← cli — Modul-Wrapper (einziger erlaubter Aufrufweg)
 ├── memory/         ← Laufzeit: alles, was der Agent produziert
-│   ├── videos/     ← fertige Renders (*.mp4)
-│   ├── clips/      ← Rohmaterial / Downloads
-│   ├── screenshots/← Frames, Crops, Standbilder
-│   ├── specs/      ← Editor-Specs (*.json)
-│   └── brainrot.db ← Contentplan + Video-Gedächtnis
+│   ├── brainrot.db ← Kanäle + Contentplan + Video-Gedächtnis (eine DB)
+│   └── <channel>/  ← pro Kanal: videos/, clips/, screenshots/, specs/
 ├── modules/        ← nur Code
 ├── recipes/
 ├── skills/
@@ -76,7 +73,30 @@ Ergebnis (Endzustand):
 
 ---
 
-## 3. Zugänge
+## 3. Kanäle
+
+Ein Agent kann mehrere Kanäle betreiben. **Kanalspezifisch ist alles in der DB**, nicht
+in Markdown: eine `channel`-Zeile pro Kanal (Nische, aktive Rezepte, Upload-Takt,
+Ruhezeiten, Zeitzone, Format, R2-Prefix, Empfänger).
+
+- Kanal wird beim Aufruf gesetzt: `bin/cli --channel <id> ...` (der Wrapper
+  exportiert `BRAINROT_CHANNEL` und entfernt das Flag).
+- Eine DB für alle Kanäle (`memory/brainrot.db`), Spalte `channel_id`; jede Query
+  ist kanalgebunden. Dateien liegen pro Kanal unter `memory/<channel>/`.
+- `add-plan` validiert gegen das Profil: Rezept muss aktiv sein, Uploadzeit darf
+  nicht in der Ruhezeit liegen.
+- R2: **ein Bucket für alle Kanäle**, getrennt nur durch `r2_prefix`
+  (`brainrot/<channel>/`). `R2_KEEP`/Aufräumen wirkt pro Prefix.
+- `editor` braucht keinen Kanal (reine Funktion); `hosting` nur für den Prefix.
+
+```
+bin/cli longterm_memory.cli channel-list
+bin/cli --channel sls longterm_memory.cli channel-get
+```
+
+---
+
+## 4. Zugänge
 
 R2-Credentials (`R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`,
 `R2_BUCKET`, `R2_PUBLIC_BASE_URL`) liegen als **`env`-Kind im OpenClaw-Store**,
@@ -181,7 +201,7 @@ Zwei Dinge, die sonst still fehlen:
 
 ---
 
-## 4. Python-Umgebung & Abhängigkeiten
+## 5. Python-Umgebung & Abhängigkeiten
 
 Die Module sind reines Python (kein Paket, keine Installation nötig — sie laufen
 aus dem Workspace).
@@ -239,7 +259,7 @@ Windows (kein venv), **aus `modules/`**: `python -m pytest tests` bzw.
 
 ---
 
-## 5. Setup (Linux)
+## 6. Setup (Linux)
 
 ```bash
 # 1) Repo ins OpenClaw-Verzeichnis klonen (siehe Verzeichniswechsel)
@@ -287,7 +307,7 @@ Heartbeat: stündlich 09:00–22:00 (`lightContext`, isolierte Session).
 
 ---
 
-## 6. Status
+## 7. Status
 
 - Agent-Workspace-Struktur: steht (`agent/`).
 - `setup/agent-config.json`: steht (Agent, Tools, `exec.mode: ask`, Heartbeat).
@@ -296,8 +316,9 @@ Heartbeat: stündlich 09:00–22:00 (`lightContext`, isolierte Session).
   Modul-CLIs. Der Interpreter steht **nicht** mehr drin (der Wrapper aktiviert die
   venv selbst) — damit ist der Wrapper das einzige erlaubte Einstiegstoken.
   **Partieller Patch** (nur `agents.brainrothustler`), vor dem Einspielen mergen.
-- `agent/bin/cli`: Modul-Wrapper (venv aktivieren → `python3 -m "$@"` aus
-  `modules/`). Muss im Deploy **ausführbar** sein (`chmod +x bin/cli`).
+- `agent/bin/cli`: Modul-Wrapper (venv aktivieren, `PYTHONPATH` auf `modules/`,
+  `--channel` → `BRAINROT_CHANNEL`; startet `python3 -m` aus dem Workspace-Root).
+  Muss im Deploy **ausführbar** sein (`chmod +x bin/cli`).
 - **YouTube-Cookies**: liegen außerhalb des Repos
   (`~/.openclaw/state/brainrot/cookies.txt`) und sind **nicht** Teil des Deploys —
   pro Host einmalig bereitstellen, sonst scheitert der YT-Download am Bot-Schutz.
