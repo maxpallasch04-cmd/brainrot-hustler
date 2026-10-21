@@ -11,9 +11,13 @@ mehrere vertikale Clips zerlegt.
 es und ruft `editor.cli validate/render`. Der Zustand hier ist nur: Quellen,
 Kandidaten, Status, Analyse.
 
-- `yt_source.status`: `Downloaded` → Kandidaten suchen; `Exhausted` → nichts
-  mehr zu clippen.
+- `yt_source.status`: `Downloaded` → offen (suchen/clippen); `Exhausted` →
+  bewusst abgeschlossen (`yt_clips.cli exhaust --source <id>`), kein `find` mehr.
 - `yt_clip.status`: `Candidate` → `Used` / `Skipped`.
+- Ein verbrauchter oder geskippter Clip beendet die Quelle **nicht**. Erst
+  `exhaust` schließt sie; neue `candidates-add` öffnen sie wieder (`Downloaded`).
+- `next` bietet `find` erneut an, solange die Quelle offen ist und kein
+  `Candidate` wartet - ein Video wird über mehrere Läufe abgearbeitet.
 
 Der Zustand liegt in `memory/brainrot.db` (`BRAINROT_DB`), Tabellen `yt_source` +
 `yt_clip` (geteilt mit `longterm_memory`). Jede Zeile gehört einem Kanal

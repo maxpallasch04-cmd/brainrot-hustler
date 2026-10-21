@@ -64,7 +64,7 @@ class StoreTest(unittest.TestCase):
         self.assertEqual(nw["action"], "find")
         self.assertEqual(nw["source"]["id"], sid)
 
-    def test_find_then_clip_then_done(self):
+    def test_find_clip_then_find_again(self):
         sid = self.store.add_source("u", ext_id="v1", path="x.mp4", recipe="sls")
         self.assertEqual(self.store.next_work("sls")["action"], "find")
         ids = self.store.add_candidates(sid, [{"start": 1.0, "end": 5.0, "reason": "Tor"}])
@@ -72,8 +72,40 @@ class StoreTest(unittest.TestCase):
         self.assertEqual(nw["action"], "clip")
         self.assertEqual(nw["clip"]["id"], ids[0])
         self.store.mark_clip(ids[0], "Used")
-        self.assertEqual(self.store.get_source(sid)["status"], "Exhausted")
+        # Ein verbrauchter Clip beendet das Video NICHT mehr.
+        self.assertEqual(self.store.get_source(sid)["status"], "Downloaded")
+        self.assertEqual(self.store.next_work("sls")["action"], "find")
+
+    def test_skip_does_not_exhaust(self):
+        sid = self.store.add_source("u", ext_id="skip", path="x.mp4", recipe="sls")
+        ids = self.store.add_candidates(sid, [{"start": 1.0, "end": 5.0},
+                                              {"start": 20.0, "end": 25.0}])
+        self.store.mark_clip(ids[0], "Skipped")
+        self.assertEqual(self.store.get_source(sid)["status"], "Downloaded")
+        nw = self.store.next_work("sls")
+        self.assertEqual(nw["action"], "clip")
+        self.assertEqual(nw["clip"]["id"], ids[1])
+        self.store.mark_clip(ids[1], "Skipped")
+        self.assertEqual(self.store.get_source(sid)["status"], "Downloaded")
+        self.assertEqual(self.store.next_work("sls")["action"], "find")
+
+    def test_exhaust_stops_find(self):
+        sid = self.store.add_source("u", ext_id="done", path="x.mp4", recipe="sls")
+        self.store.set_source_status(sid, "Exhausted")
         self.assertEqual(self.store.next_work("sls")["action"], "download")
+        self.store.set_source_status(sid, "Downloaded")       # reopen
+        self.assertEqual(self.store.next_work("sls")["action"], "find")
+
+    def test_new_candidates_revive_source(self):
+        sid = self.store.add_source("u", ext_id="revive", path="x.mp4", recipe="sls")
+        self.store.set_source_status(sid, "Exhausted")
+        self.store.add_candidates(sid, [{"start": 3.0, "end": 8.0}])
+        self.assertEqual(self.store.get_source(sid)["status"], "Downloaded")
+        self.assertEqual(self.store.next_work("sls")["action"], "clip")
+
+    def test_source_status_is_channel_scoped(self):
+        with self.assertRaises(KeyError):
+            self.store.set_source_status(999, "Exhausted")
 
     def test_next_is_per_recipe(self):
         sid = self.store.add_source("u", ext_id="r-a", path="a.mp4", recipe="sls")

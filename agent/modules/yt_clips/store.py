@@ -178,8 +178,11 @@ class Store:
     def set_source_status(self, source_id: int, status: str) -> None:
         if status not in SOURCE_STATUSES:
             raise ValueError(f"status must be one of {SOURCE_STATUSES}")
-        self.conn.execute("UPDATE yt_source SET status = ? WHERE id = ?",
-                          (status, int(source_id)))
+        cur = self.conn.execute(
+            "UPDATE yt_source SET status = ? WHERE id = ? AND channel_id = ?",
+            (status, int(source_id), self.channel))
+        if cur.rowcount == 0:
+            raise KeyError(f"source {source_id} not found in channel {self.channel!r}")
         self.conn.commit()
 
     def set_recipe(self, source_id: int, recipe: str) -> dict:
@@ -284,6 +287,13 @@ class Store:
                  segments_json, _now()))
             ids.append(int(cur.lastrowid))
         self.conn.commit()
+        if ids:
+            # Neue Arbeit an einer als fertig markierten Quelle macht sie wieder offen.
+            self.conn.execute(
+                "UPDATE yt_source SET status = 'Downloaded' "
+                "WHERE id = ? AND channel_id = ? AND status = 'Exhausted'",
+                (int(source_id), self.channel))
+            self.conn.commit()
         return ids
 
     def list_clips(self, source_id=None, status=None) -> list[dict]:
@@ -309,7 +319,12 @@ class Store:
     # ---- per-clip status -----------------------------------------------
 
     def mark_clip(self, clip_id: int, status: str, video_id=None) -> dict:
-        """Mark a clip Used/Skipped; exhausts the source when nothing is left."""
+        """Mark a clip Used/Skipped.
+
+        Der Source-Status bleibt unberührt: `Exhausted` heißt "hier ist nichts
+        mehr zu holen" und wird nur bewusst gesetzt (``exhaust``), nicht als
+        Nebenwirkung des letzten Clips.
+        """
         if status not in CLIP_STATUSES:
             raise ValueError(f"status must be one of {CLIP_STATUSES}")
         clip = self.get_clip(clip_id)
@@ -318,11 +333,6 @@ class Store:
         self.conn.execute("UPDATE yt_clip SET status = ?, video_id = COALESCE(?, video_id) "
                           "WHERE id = ?", (status, video_id, int(clip_id)))
         self.conn.commit()
-        left = self.conn.execute(
-            "SELECT COUNT(*) n FROM yt_clip WHERE source_id = ? AND status = 'Candidate'",
-            (clip["source_id"],)).fetchone()["n"]
-        if not left:
-            self.set_source_status(clip["source_id"], "Exhausted")
         return dict(self.get_clip(clip_id))
 
     # ---- work queue -----------------------------------------------------
@@ -349,7 +359,8 @@ class Store:
         row = self.conn.execute(
             "SELECT * FROM yt_source s WHERE s.status != 'Exhausted' AND s.recipe = ? "
             "AND s.channel_id = ? "
-            "AND NOT EXISTS (SELECT 1 FROM yt_clip c WHERE c.source_id = s.id) "
+            "AND NOT EXISTS (SELECT 1 FROM yt_clip c "
+            "                WHERE c.source_id = s.id AND c.status = 'Candidate') "
             "ORDER BY s.id LIMIT 1", (name, self.channel)).fetchone()
         if row:
             return {"action": "find", "recipe": name, "source": self.get_source(row["id"])}

@@ -133,7 +133,11 @@ YT-Spezifische steht hier — die Pipeline ist generisch.
       ~/.openclaw/workspace-brainrothustler/bin/channel <id> editor.cli render   --spec memory/<channel>/specs/<name>.json --out memory/<channel>/videos/<name>.mp4 --overwrite
       ~/.openclaw/workspace-brainrothustler/bin/channel <id> yt_clips.cli used   --clip <clip-id>
       ```
-      Ist nichts mehr übrig, wird das Video `Exhausted`.
+      Ein verbrauchter Clip beendet das Video **nicht**. Ist im aktuellen
+      Fenster nichts mehr offen, geht es mit `find` weiter (neue Stellen
+      suchen). Erst wenn ein `find`-Lauf nichts Neues findet:
+      `yt_clips.cli exhaust --source <source-id>` - danach ist die Quelle zu
+      (`reopen --source <id>` öffnet sie wieder).
    - **`warnings` prüfen:** `validate` meldet Lücken/Überlauf im Layout. Bei
      einer Lücke zuerst die Spec korrigieren.
    - **Auswahl pro Clip:** nicht gewünschte Regionen einfach in der Spec weglassen.

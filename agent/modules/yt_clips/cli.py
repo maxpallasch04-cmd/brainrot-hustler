@@ -231,6 +231,12 @@ def main(argv: list[str] | None = None) -> int:
     sk = sub.add_parser("skip", help="mark a clip as Skipped")
     sk.add_argument("--clip", type=int, required=True)
 
+    ex = sub.add_parser("exhaust", help="Quelle als fertig markieren (kein find mehr)")
+    ex.add_argument("--source", type=int, required=True)
+
+    ro = sub.add_parser("reopen", help="Exhausted zurücknehmen")
+    ro.add_argument("--source", type=int, required=True)
+
     args = p.parse_args(argv)
     channel = paths.channel(required=True)
 
@@ -356,6 +362,10 @@ def main(argv: list[str] | None = None) -> int:
             _dump(out)
         elif args.cmd == "list":
             _dump({"sources": store.list_sources(args.recipe)})
+        elif args.cmd in ("exhaust", "reopen"):
+            store.set_source_status(
+                args.source, "Exhausted" if args.cmd == "exhaust" else "Downloaded")
+            _dump(store.get_source(args.source))
         elif args.cmd in ("used", "skip"):
             clip = store.get_clip(args.clip)
             if clip is None:
