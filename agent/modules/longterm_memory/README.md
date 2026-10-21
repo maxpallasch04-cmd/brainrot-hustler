@@ -1,6 +1,6 @@
 # longterm_memory
 
-> **Aufruf:** `~/.openclaw/workspace-brainrothustler/bin/cli --channel <id> longterm_memory.cli <cmd> <args>`
+> **Aufruf:** `~/.openclaw/workspace-brainrothustler/bin/channel <id> longterm_memory.cli <cmd> <args>`
 > (Workspace-Wrapper, siehe `TOOLS.md`) - aus jedem cwd, venv wird automatisch aktiviert.
 
 Der Contentplan **und** das Gedächtnis des Kanals in einer Tabelle, plus die
@@ -85,38 +85,56 @@ mem.overdue()                   # generated, Uploadzeit vorbei
 | `nextDue(now=None, lead_s=None)` | nächster fälliger `planned`-Eintrag oder `None` |
 | `overdue(now=None)` | `generated`, deren Uploadzeit vorbei ist |
 | `task(now=None, lead_s=None, open_target=None)` | eine Heartbeat-Entscheidung: `upload` \| `pipeline` \| `plan` \| `idle` |
+| `task_all(path=None, *, now=None, lead_s=None, open_target=None)` | dasselbe über **alle aktiven Kanäle**; liefert die dringendste Aktion + `channel` und `channels` (Übersicht). Ohne Kanal: `ChannelError` |
 
 ## CLI
 
 ```
-bin/cli --channel sls longterm_memory.cli task [--open-target 2] [--lead-h 4]
-bin/cli --channel sls longterm_memory.cli add-plan --idea "..." --recipe ytsls-besttrick --plan-at "2026-10-21 18:00"
-bin/cli --channel sls longterm_memory.cli nextdue [--lead-h 4]
-bin/cli --channel sls longterm_memory.cli open-count
-bin/cli --channel sls longterm_memory.cli generated 1 --title "..." --file memory/sls/videos/x.mp4 --len-s 31
-bin/cli --channel sls longterm_memory.cli overdue
-bin/cli --channel sls longterm_memory.cli upload 1 [--at "2026-10-21 18:05"]
-bin/cli --channel sls longterm_memory.cli get-video 1
-bin/cli --channel sls longterm_memory.cli list-videos [--status planned|generated|uploaded]
+bin/cli longterm_memory.cli task [--open-target 2] [--lead-h 4] [--now "2026-10-21 18:00"]   # kanal-frei
+bin/channel sls longterm_memory.cli add-plan --idea "..." --recipe ytsls-besttrick --plan-at "2026-10-21 18:00"
+bin/channel sls longterm_memory.cli nextdue [--lead-h 4]
+bin/channel sls longterm_memory.cli open-count
+bin/channel sls longterm_memory.cli generated 1 --title "..." --file memory/sls/videos/x.mp4 --len-s 31
+bin/channel sls longterm_memory.cli overdue
+bin/channel sls longterm_memory.cli upload 1 [--at "2026-10-21 18:05"]
+bin/channel sls longterm_memory.cli get-video 1
+bin/channel sls longterm_memory.cli list-videos [--status planned|generated|uploaded]
 
 # Profile (channel-set/get brauchen --channel)
 bin/cli longterm_memory.cli channel-list
-bin/cli --channel sls longterm_memory.cli channel-get
-bin/cli --channel sls longterm_memory.cli channel-set --niche "Skate comps" \
+bin/cli longterm_memory.cli channel-get sls
+bin/cli longterm_memory.cli channel-set sls --niche "Skate comps" \
     --recipes ytsls-besttrick,ytsls-bestline --open-target 2 --lead-h 4 \
     --quiet-start 22:00 --quiet-end 10:00 --tz Europe/Berlin
 ```
 
-`task` ist der Herzstück-Befehl für den Heartbeat - eine Antwort, eine Aktion:
+`task` ist der Herzstück-Befehl für den Heartbeat - eine Antwort, eine Aktion,
+**kanal-frei** (entscheidet über alle aktiven Kanäle):
 
 ```json
-{"channel": "sls", "action": "pipeline", "open": 2, "target": 2, "also": [], "entry": {"id": 3, ...}}
+{"action": "pipeline", "channel": "sls", "open": 2, "target": 2,
+ "entry": {"id": 3, ...},
+ "video": {"id": 3, "label": "Best Trick 9.10 (#3)", "title": "",
+           "idea": "Best Trick 9.10", "recipe": "ytsls-besttrick", "file": null,
+           "plan_at": 1793000000, "plan_at_local": "2026-10-21 18:00", "status": "planned"},
+ "channels": [{"channel": "sls", "action": "pipeline", "open": 2, "target": 2},
+              {"channel": "second", "action": "idle", "open": 2, "target": 2}]}
 ```
 
-Priorität: `upload` → `pipeline` → `plan` → `idle`. Zusätzlich Anstehendes steht in
-`also`; `entry` und `videos` sind immer dabei, wenn sie existieren.
+`video` beantwortet „um welches Video geht es": bei `pipeline` der fällige Eintrag,
+bei `upload` das dringendste aus `videos`, bei `plan`/`idle` fehlt es.
+`plan_at_local` ist bereits in der Kanal-Zeitzone formatiert.
+
+Priorität: `upload` → `pipeline` → `plan` → `idle`. Ausgegeben wird **nur** die
+Aktion, die jetzt dran ist; `entry` und `videos` sind dabei, wenn sie existieren.
+Was später ansteht, kommt im nächsten Heartbeat von selbst. Gibt es keinen
+Kanal, endet `task` mit `ChannelError` statt mit `idle`.
 
 Zeiten: Unix-Sekunden **oder** lokal `YYYY-MM-DD HH:MM`. Alle Befehle geben JSON aus.
+
+**Debug:** `--now` friert die Bezugszeit ein (bei `task`, `nextdue`, `overdue`) -
+damit lässt sich ein Heartbeat reproduzieren, ohne zu warten. `--open-target` und
+`--lead-h` überschreiben die Profilwerte für einen Lauf.
 
 ## Migration
 

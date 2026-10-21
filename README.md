@@ -79,19 +79,21 @@ Ein Agent kann mehrere Kanäle betreiben. **Kanalspezifisch ist alles in der DB*
 in Markdown: eine `channel`-Zeile pro Kanal (Nische, aktive Rezepte, Upload-Takt,
 Ruhezeiten, Zeitzone, Format, R2-Prefix, Empfänger).
 
-- Kanal wird beim Aufruf gesetzt: `bin/cli --channel <id> ...` (der Wrapper
-  exportiert `BRAINROT_CHANNEL` und entfernt das Flag).
+- Kanal wird beim Aufruf gesetzt: `bin/channel <id> ...` setzt `BRAINROT_CHANNEL`.
+  Es gibt **keinen** Session-Zustand und keinen „aktuellen Kanal" - der Kanal ist
+  pro Aufruf explizit.
 - Eine DB für alle Kanäle (`memory/brainrot.db`), Spalte `channel_id`; jede Query
   ist kanalgebunden. Dateien liegen pro Kanal unter `memory/<channel>/`.
 - `add-plan` validiert gegen das Profil: Rezept muss aktiv sein, Uploadzeit darf
   nicht in der Ruhezeit liegen.
-- R2: **ein Bucket für alle Kanäle**, getrennt nur durch `r2_prefix`
-  (`brainrot/<channel>/`). `R2_KEEP`/Aufräumen wirkt pro Prefix.
+- R2: **ein Bucket für alle Kanäle**, getrennt nur durch den Prefix
+  (`brainrot/<channel>/`). `hosting` liest ihn aus dem Kanalprofil;
+  `R2_KEEP`/Aufräumen wirkt pro Prefix.
 - `editor` braucht keinen Kanal (reine Funktion); `hosting` nur für den Prefix.
 
 ```
 bin/cli longterm_memory.cli channel-list
-bin/cli --channel sls longterm_memory.cli channel-get
+bin/cli longterm_memory.cli channel-get sls
 ```
 
 ---
@@ -105,6 +107,21 @@ Umgebungsvariablen injiziert → `modules/hosting` liest `os.environ`.
 
 > Für Kontexte **außerhalb** des Gateways (Sandbox/remote/anderer Host) reicht
 > das nicht — dort braucht es eine eigene `.env` neben `modules/`.
+
+### Umgebungsvariablen
+
+Alles, was zur Laufzeit über die Umgebung gesteuert wird. Für den Agenten
+irrelevant - er ruft nur `bin/cli` / `bin/channel` auf.
+
+| Variable | Bedeutung | Default |
+| --- | --- | --- |
+| `BRAINROT_CHANNEL` | aktiver Kanal; setzt `bin/channel` | - |
+| `BRAINROT_DB` | Pfad der SQLite-DB | `memory/brainrot.db` |
+| `BRAINROT_STATE_DIR` | Verzeichnis für Cookies/Token | `~/.openclaw/state/brainrot` |
+| `YTDLP_COOKIES_FILE` | Netscape-`cookies.txt` für yt-dlp | `$BRAINROT_STATE_DIR/cookies.txt` |
+| `R2_*` | Zugänge, Bucket, Public-URL (siehe oben) | - |
+| `R2_KEEP` / `R2_QUOTA_GB` | Aufbewahrung je Prefix | `1` / `10 GB` |
+| `EDITOR_FFMPEG` / `EDITOR_FFPROBE` | eigenes Binary statt `imageio-ffmpeg` | - |
 
 **YouTube-Cookies** (für `yt_clips`) sind ebenfalls ein Zugang: YouTube blockt
 Rechenzentrums-IPs („Sign in to confirm you're not a bot"). Eine Netscape-

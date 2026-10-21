@@ -26,7 +26,7 @@ YT-Spezifische steht hier — die Pipeline ist generisch.
    kommen und was einen clipwürdigen Moment ausmacht.
 2. **Offene Arbeit prüfen:**
    ```
-   ~/.openclaw/workspace-brainrothustler/bin/cli --channel <id> yt_clips.cli next --recipe <recipe>
+   ~/.openclaw/workspace-brainrothustler/bin/channel <id> yt_clips.cli next --recipe <recipe>
    ```
    Die `action` sagt, was zu tun ist: `clip` | `find` | `download`. Das Rezept
    ist der Queue-Schlüssel — fremdes Material taucht hier nicht auf.
@@ -37,21 +37,21 @@ YT-Spezifische steht hier — die Pipeline ist generisch.
    a. **5 Screenshots**, gleichmäßig über das Video verteilt (nicht am
       Anfang, sonst wird z. B. eine Halbzeit-Vollbildgrafik als „Layout" erkannt):
       ```
-      ~/.openclaw/workspace-brainrothustler/bin/cli --channel <id> editor.cli frames --in <pfad> --count 5 --out-dir memory/<channel>/screenshots --width 1280
+      ~/.openclaw/workspace-brainrothustler/bin/channel <id> editor.cli frames --in <pfad> --count 5 --out-dir memory/<channel>/screenshots --width 1280
       ```
    b. **Boxen erkennen:** die 5 Bilder mit `view_image` ansehen → es liefert
       **Boxen** `(x, y, w, h)` für die erkennbaren Bereiche.
 
    c. **Unterboxen** (wenn gefragt): die große Box **croppen + hochskalieren**:
       ```
-      ~/.openclaw/workspace-brainrothustler/bin/cli --channel <id> yt_clips.cli crop-frame --in memory/<channel>/screenshots/<bild>.png --box <score-box> --out memory/<channel>/screenshots/sb.png --scale 2
+      ~/.openclaw/workspace-brainrothustler/bin/channel <id> yt_clips.cli crop-frame --in memory/<channel>/screenshots/<bild>.png --box <score-box> --out memory/<channel>/screenshots/sb.png --scale 2
       ```
       **Nur diesen Ausschnitt** nochmal ins Vision-Modell geben. Koordinaten sind
       **relativ zum Crop**: zurückrechnen mit dem `offset` aus der Ausgabe
       (`unterbox + offset`, bei `--scale` vorher durch den Faktor teilen).
    d. **Boxen speichern** (einmal pro Video, kanonisch in der DB):
       ```
-      ~/.openclaw/workspace-brainrothustler/bin/cli --channel <id> yt_clips.cli boxes-set --source <id> --json boxes.json
+      ~/.openclaw/workspace-brainrothustler/bin/channel <id> yt_clips.cli boxes-set --source <id> --json boxes.json
       ```
       Form: `{"score": [x,y,w,h], "name": [...]}` — in **Quellkoordinaten**.
 
@@ -62,45 +62,49 @@ YT-Spezifische steht hier — die Pipeline ist generisch.
 
    1. **Audio-Peaks + Kapitel** (grobe Kandidaten, ohne Vision):
       ```
-      ~/.openclaw/workspace-brainrothustler/bin/cli --channel <id> yt_clips.cli highlights --source <id> --top 10 --add
+      ~/.openclaw/workspace-brainrothustler/bin/channel <id> yt_clips.cli highlights --source <id> --top 10 --add
       ```
       `--add` schreibt die Treffer direkt als Kandidaten in die DB.
    2. **Transkript-Zahlen** (Score-Ansage als Suchanker):
       ```
-      ~/.openclaw/workspace-brainrothustler/bin/cli --channel <id> editor.cli subtitles numbers --in <subs.vtt> --min 6 --max 10
+      ~/.openclaw/workspace-brainrothustler/bin/channel <id> editor.cli subtitles numbers --in <subs.vtt> --min 6 --max 10
       ```
    3. **Bestimmte Transkript-Zeilen lesen** — immer nur ein Fenster, nie die
       ganze Datei (Pfad: `subs_path` aus `next`/`list`):
       ```
-      ~/.openclaw/workspace-brainrothustler/bin/cli --channel <id> editor.cli subtitles words --in <subs.vtt> --at <t> --window 3
+      ~/.openclaw/workspace-brainrothustler/bin/channel <id> editor.cli subtitles words --in <subs.vtt> --at <t> --window 3
       ```
       Schnittkanten: `editor.cli subtitles snap --in <subs.vtt> --at <t> --mode sentence --direction before` (bzw. `after`).
    4. **Score-Anzeige per OCR** (feste Box, günstig):
       ```
-      ~/.openclaw/workspace-brainrothustler/bin/cli --channel <id> yt_clips.cli ocr --clip <id> --box <x,y,w,h> --step 1
+      ~/.openclaw/workspace-brainrothustler/bin/channel <id> yt_clips.cli ocr --clip <id> --box <x,y,w,h> --step 1
       ```
       Liefert Werte `0.0–10.0`; `first_stable` ist der **End-Anker**, nicht die Ansage.
    5. **Bewegung messen** (Start-Anker):
       ```
-      ~/.openclaw/workspace-brainrothustler/bin/cli --channel <id> yt_clips.cli motion --source <id> --from <t> --to <t>
+      ~/.openclaw/workspace-brainrothustler/bin/channel <id> yt_clips.cli motion --source <id> --from <t> --to <t>
       ```
       `first_motion` = erster wirklich bewegter Frame (nicht aus dem Transkript raten).
 
    Kandidaten eintragen — als Fenster oder als Score-Anker:
    ```
-   ~/.openclaw/workspace-brainrothustler/bin/cli --channel <id> yt_clips.cli candidates-add --source <id> --json cands.json
+   ~/.openclaw/workspace-brainrothustler/bin/channel <id> yt_clips.cli candidates-add --source <id> --json cands.json
    ```
    Form: `[{"start":..,"end":..,"reason":".."}]` oder
    `[{"score":..,"pre_roll":..,"post_roll":..,"reason":".."}]`.
 
-### `clip` — einen Kandidaten rendern
+### `clip` - Kandidat schneiden (Render macht `editor`)
 
-   Die **Action-Box wird pro Clip bestimmt** — deshalb gehört sie nicht in
+   `yt_clips` **rendert nicht**. Es liefert Fenster und Boxen; das Video schreibt
+   ausschließlich `editor` aus einer Spec. Deshalb stehen die Aufrufe unten
+   unter `editor.cli`, nicht unter `yt_clips.cli`.
+
+   Die **Action-Box wird pro Clip bestimmt** - deshalb gehört sie nicht in
    `format`: der Akteur bewegt sich, die Kamera wechselt.
 
    a. **2–3 Frames aus dem Fenster** ansehen (nicht aus dem ganzen Video):
       ```
-      ~/.openclaw/workspace-brainrothustler/bin/cli --channel <id> editor.cli frames --in <rohvideo> --at <start>,<mitte>,<ende> --out-dir memory/<channel>/screenshots --width 1280
+      ~/.openclaw/workspace-brainrothustler/bin/channel <id> editor.cli frames --in <rohvideo> --at <start>,<mitte>,<ende> --out-dir memory/<channel>/screenshots --width 1280
       ```
       Box so legen/verschieben, dass der Akteur an **jeder Seite ≥ 10 %** Rand
       hat. Die Box muss **exakt 9:16** sein (Breite = Höhe × 9/16, ganzzahlig),
@@ -125,9 +129,9 @@ YT-Spezifische steht hier — die Pipeline ist generisch.
       ```
    c. **Prüfen, rendern, markieren:**
       ```
-      ~/.openclaw/workspace-brainrothustler/bin/cli --channel <id> editor.cli validate --spec memory/<channel>/specs/<name>.json
-      ~/.openclaw/workspace-brainrothustler/bin/cli --channel <id> editor.cli render   --spec memory/<channel>/specs/<name>.json --out memory/<channel>/videos/<name>.mp4 --overwrite
-      ~/.openclaw/workspace-brainrothustler/bin/cli --channel <id> yt_clips.cli used   --clip <clip-id>
+      ~/.openclaw/workspace-brainrothustler/bin/channel <id> editor.cli validate --spec memory/<channel>/specs/<name>.json
+      ~/.openclaw/workspace-brainrothustler/bin/channel <id> editor.cli render   --spec memory/<channel>/specs/<name>.json --out memory/<channel>/videos/<name>.mp4 --overwrite
+      ~/.openclaw/workspace-brainrothustler/bin/channel <id> yt_clips.cli used   --clip <clip-id>
       ```
       Ist nichts mehr übrig, wird das Video `Exhausted`.
    - **`warnings` prüfen:** `validate` meldet Lücken/Überlauf im Layout. Bei
@@ -138,7 +142,7 @@ YT-Spezifische steht hier — die Pipeline ist generisch.
 
    Kein offenes Video mehr → neues laden. Transcript gleich mitnehmen:
    ```
-   ~/.openclaw/workspace-brainrothustler/bin/cli --channel <id> yt_clips.cli download --url <url> --out-dir memory/<channel>/clips --recipe <name> --subs-lang en
+   ~/.openclaw/workspace-brainrothustler/bin/channel <id> yt_clips.cli download --url <url> --out-dir memory/<channel>/clips --recipe <name> --subs-lang en
    ```
    Der Transcript-Pfad landet in `subs_path` (sichtbar in `next`/`list`).
    Danach wieder bei `find`.

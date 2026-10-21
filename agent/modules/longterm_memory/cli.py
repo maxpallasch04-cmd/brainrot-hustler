@@ -15,7 +15,7 @@ import json
 from datetime import datetime
 
 from . import db
-from .memory import LongTermMemory, Status, VideoArt
+from .memory import LongTermMemory, Status, VideoArt, task_all
 
 
 def _dump(obj) -> None:
@@ -42,14 +42,10 @@ def _list(value: str) -> list[str]:
     return [part.strip() for part in value.split(",") if part.strip()]
 
 
-def _channel(args, required: bool = True) -> str | None:
+def _channel() -> str:
     import brainrot_paths as paths
 
-    if args.channel:
-        value = paths.valid_channel(args.channel)
-    else:
-        value = paths.channel(required=required)
-    return value
+    return paths.channel(required=True)
 
 
 def _profile_args(p: argparse.ArgumentParser) -> None:
@@ -75,14 +71,14 @@ def _profile_args(p: argparse.ArgumentParser) -> None:
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="longterm_memory")
     p.add_argument("--db", default=None, help="DB path (default: memory/brainrot.db)")
-    p.add_argument("--channel", default=None,
-                   help="Kanal-ID (default: $BRAINROT_CHANNEL)")
     sub = p.add_subparsers(dest="cmd", required=True)
 
     cs = sub.add_parser("channel-set", help="Kanalprofil anlegen/ändern")
+    cs.add_argument("id", help="Kanal-ID (a-z0-9-_, max. 32)")
     _profile_args(cs)
 
     cg = sub.add_parser("channel-get", help="Kanalprofil lesen")
+    cg.add_argument("id", help="Kanal-ID")
     sub.add_parser("channel-list", help="alle Kanäle")
 
     ap = sub.add_parser("add-plan", help="neuen Plan-Eintrag anlegen (status planned)")
@@ -143,19 +139,26 @@ def main(argv: list[str] | None = None) -> int:
             if args.cmd == "channel-list":
                 _dump(db.list_channels(conn))
                 return 0
-            cid = _channel(args)
             if args.cmd == "channel-get":
-                _dump(db.get_channel(conn, cid))
+                _dump(db.get_channel(conn, args.id))
                 return 0
             fields = {k: v for k, v in vars(args).items()
-                      if k not in ("cmd", "db", "channel") and v is not None}
-            _dump(db.upsert_channel(conn, cid, **fields))
+                      if k not in ("cmd", "db", "id") and v is not None}
+            _dump(db.upsert_channel(conn, args.id, **fields))
         finally:
             conn.close()
         return 0
 
-    channel = _channel(args)
     lead_h = args.lead_h if "lead_h" in args and args.lead_h is not None else None
+
+    if args.cmd == "task":
+        # Kanal-frei: entscheidet über alle aktiven Kanäle.
+        _dump(task_all(args.db, now=args.now,
+                       lead_s=None if lead_h is None else int(lead_h * 3600),
+                       open_target=args.open_target))
+        return 0
+
+    channel = _channel()
 
     with LongTermMemory(args.db, channel=channel) as mem:
         if args.cmd == "add-plan":
@@ -172,10 +175,6 @@ def main(argv: list[str] | None = None) -> int:
             _dump(mem.listVideos(args.status))
         elif args.cmd == "nextdue":
             _dump(mem.nextDue(args.now, None if lead_h is None else int(lead_h * 3600)))
-        elif args.cmd == "task":
-            _dump(mem.task(args.now,
-                           None if lead_h is None else int(lead_h * 3600),
-                           args.open_target))
         elif args.cmd == "open-count":
             _dump({"channel": mem.channel, "open": mem.openCount()})
         elif args.cmd == "overdue":

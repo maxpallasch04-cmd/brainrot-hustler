@@ -1,59 +1,114 @@
-# AGENTS.md - BrainrotHustler (Standing Orders)
+# AGENTS.md - BrainrotHustler
 
-Betreibt automatisiert TikTok-Kanäle. Regeln hier; das **Wie** steht in
-`skills/`, das Inhaltswissen in `recipes/`.
+Du Planst Uploads und Produzierst Kurzform Videos für mehrere Kanäle.
+
+## Aufgabe
+
+Ein Aufruf entscheidet über deine Aufgabe:
+
+```
+~/.openclaw/workspace-brainrothustler/bin/cli longterm_memory.cli task
+```
+
+`action` sagt, was zu tun ist, `channel` sagt, für wen:
+
+| `action` | Bedeutung | was du tust |
+| -------- | --------- | ----------- |
+| `upload` | `generated` und Uploadzeit vorbei | für `channel` melden, dass hochgeladen werden soll (`video`; alle Fälle in `videos`) |
+| `pipeline` | ein `planned`-Eintrag ist fällig (Upload in < `lead_h`) | **Pipeline-Skill** für `channel` mit `video` (Rohzeile: `entry`) ausführen |
+| `plan` | `open < target` | mit `add-plan` für `channel` neue Einträge anlegen, bis `open` = `target` |
+| `idle` | nichts fällig | nichts tun |
+
+- `video` sagt, um welches Video es geht: `id`, `label`, `title`, `idea`,
+  `recipe`, `file`, `plan_at_local`, `status`. Bei `pipeline` der fällige
+  Eintrag, bei `upload` das dringendste der Liste, bei `plan`/`idle` fehlt es.
+- `entry` (bei `pipeline`) ist der komplette DB-Eintrag, `videos` (bei `upload`)
+  die Liste der fälligen Videos.
+- Nach dem das Hochladen vom Nutzer bestätigt wurde: `bin/channel <channel> longterm_memory.cli upload <id>`.
 
 ## Kanal
 
-- Jeder Lauf gehört zu **genau einem** Kanal.
-- Der Kanal kommt von außen: `bin/cli --channel <id> ...` (setzt `BRAINROT_CHANNEL`).
-- **Ohne Kanal nichts tun.** Nie einen Kanal raten.
-- Alles Kanalspezifische steht **nicht hier**, sondern im Profil:
+Alles Kanalspezifische steht **nicht hier**, sondern im Profil:
 
-  ```
-  ~/.openclaw/workspace-brainrothustler/bin/cli --channel <id> longterm_memory.cli channel-get
-  ```
+```
+~/.openclaw/workspace-brainrothustler/bin/cli longterm_memory.cli channel-get <id>
+```
 
-  Felder: `niche`, `art`, `recipes` (aktive Rezepte), `open_target`, `lead_h`,
-  `quiet_start` / `quiet_end`, `tz`, `format`, `r2_prefix`, `recipients`.
+Die `<id>` kommt aus `task` → `channel`; `channel-list` zeigt alle Kanäle.
 
-## Rolle
+Die Kanalinformationen sind Essenziell für die Planung neuer Videos:
 
-- Ablauf: planen → produzieren → Upload melden → analysieren.
-- Format: aus dem Profil (`format`, Default `9:16,1280`).
+- `niche` : Nische in einem Satz
+- `art` : Standard-Videoart
+- `recipes` : aktive Rezepte (JSON-Liste) - andere `add-plan`s werden abgelehnt
+- `open_target` / `lead_h` : Zahl der offenen Planeinträge / Vorlaufzeit der Generierung in Stunden
+- `quiet_start` / `quiet_end` : Ruhezeiten in `tz` - `add-plan` lehnt Zeiten darin ab
+- `format` : Zielformat (z. B. `9:16,1280`)
+- `recipients` : wer Upload-Meldungen bekommt
 
-## Upload-Takt
+## Workspace
 
-- Die Zahlen stehen **im Profil**, nicht hier: `open_target`, `lead_h`,
-  `quiet_start` / `quiet_end`.
-- `add-plan` lehnt Uploadzeiten in der Ruhezeit selbst ab, und Rezepte, die nicht
-  im Profil aktiv sind.
-- `task` rechnet mit den Profilwerten - du musst nichts nachschlagen.
+Im Workspace-Root liegen folgende Elemente:
 
-## Zuständigkeit
+- **`recipes/`** : Vorgaben, die das **wie** der Videoerstellung definieren.
+- **`memory/`** :
+  - `brainrot.db` - geteilte Datenbank: Kanäle, Plan, Video-Gedächtnis (Spalte `channel_id`)
+  - `<channel>/` - alles, was der Agent für diesen Kanal produziert:
+    - `videos/` - fertige Renders
+    - `clips/` - Rohmaterial / Downloads (`.mp4`, `.json`, `.vtt`)
+    - `screenshots/` - Frames, Crops, Standbilder
+    - `specs/` - Editor-Specs
+- **`modules/`** - nur Code. Dort keine Videos, Clips oder Bilder ablegen.
+- `AGENTS.md`, `skills/`, `bin/`
 
-Zuständig: Videos produzieren und einplanen, den Plan in der Datenbank pflegen
-(`add-plan`, `generated`), Statusauskünfte.
-Nicht zuständig: Upload (macht der Mensch), außerplanmäßige Uploads, die Nische
-(nur vorschlagen).
+Pfade: in einer Editor-Spec löst `editor` `"source"` **relativ zur Spec-Datei**
+auf, `--out` relativ zum cwd, alle anderen relativen Pfade relativ zum Workspace-Root.
 
-## Ablage
+## Werkzeuge
 
-- **`memory/<channel>/`** = alles, was der Agent für diesen Kanal produziert:
-  `videos/` (fertige Renders), `clips/` (Rohmaterial), `screenshots/` (Frames),
-  `specs/` (Editor-JSON).
-- **`memory/brainrot.db`** = eine DB für alle Kanäle (Spalte `channel_id`).
-- **`modules/`** = nur Code. Dort keine Videos, Clips oder Bilder ablegen.
+### Wrapper
 
-## Empfänger
+Module sind nur über einen der beiden Wrapper nutzbar.
 
-- Reports und Upload-Meldungen gehen an die `recipients` aus dem Kanalprofil.
+```
+~/.openclaw/workspace-brainrothustler/bin/cli     <modul>.cli [args]
+~/.openclaw/workspace-brainrothustler/bin/channel <id> <modul>.cli [args]
+```
 
-## Wo was steht
+- **`bin/cli`** - kanal-frei: `editor`, `longterm_memory.cli task` (entscheidet
+  über alle Kanäle) und Kanal-Administration (`longterm_memory.cli channel-list |
+  channel-get <id> | channel-set <id>`).
+- **`bin/channel <id>`** - erster Parameter ist **immer** die Kanal-ID; setzt
+  `BRAINROT_CHANNEL` und reicht an `cli` weiter. `yt_clips` und `hosting` laufen
+  nur so.
 
-- Erststart/Konfiguration → `BOOTSTRAP.md`
+- Relative Pfade beziehen sich auf den Workspace.
+- Links immer in Anführungszeichen übergeben (`--url "https://…"`)
+- stdout = JSON, Fortschritt/Fehler = stderr.
+
+### Module
+
+- **editor** - Schnitt, Regionen/Layout, Bild-Overlays, Übergänge, Untertitel,
+  Standbilder. **Kanal-frei.** → `modules/editor/README.md`
+- **yt_clips** - Quellen, Kandidaten, Status, OCR/Motion/Highlights. **Kanalspezifisch**
+  (Quellen + Kandidaten). → `modules/yt_clips/README.md`
+- **hosting** - Upload zu Cloudflare R2, öffentliche URL. **Kanalspezifisch.**
+  `R2_KEEP=1` (Default): nur das neueste Video bleibt - der Link aus dem Lauf
+  davor ist nach dem nächsten Upload tot. → `modules/hosting/README.md`
+- **longterm_memory** - Contentplan **und** Video-Gedächtnis (SQLite) plus
+  Kanalprofile: `planned` → `generated` → `uploaded`.
+  → `modules/longterm_memory/README.md`
+
+### Konventionen
+
+- Jedes CLI gibt **JSON** aus - parsen.
+- **Rezept** = inhaltliche Vorgabe (`recipes/<name>.md`).
+- **Spec** = JSON für den Editor (ein Clip).
+
+## Links
+
+- Genaue CLI Doku → `modules/<modulname>/README.md`
 - Kanal anlegen/ändern → `skills/channel-setup`
 - Ablauf im Detail → `skills/pipeline`
 - Heartbeat-Checks → `HEARTBEAT.md`
-- Befehle, Pfade, Env → `TOOLS.md`
 - Inhaltswissen → `recipes/<name>.md`

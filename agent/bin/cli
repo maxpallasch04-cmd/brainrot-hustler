@@ -1,17 +1,21 @@
 #!/usr/bin/env bash
-# cli - BrainrotHustler Modul-Wrapper
+# cli - BrainrotHustler Wrapper für KANAL-FREIE Aufrufe
 #
-# Aktiviert die Workspace-venv und ruft ein Modul-CLI auf. Arbeitsverzeichnis
-# ist der **Workspace-Root**: relative Pfade beziehen sich damit auf
-# memory/<channel>/. `modules/` liegt auf dem PYTHONPATH (dort ist der Code).
+# Aktiviert die venv, setzt modules/ auf den PYTHONPATH, arbeitet im
+# Workspace-Root. Es wird KEIN Kanal gesetzt - kanalgebundene Module
+# (longterm_memory-Daten, yt_clips) verweigern den Start ohne Kanal.
 #
-# Der Kanal wird als `--channel <id>` an beliebiger Stelle übergeben; der
-# Wrapper exportiert ihn als BRAINROT_CHANNEL und entfernt das Flag aus argv
-# (so bleibt die exec-Allowlist unverändert und jedes Modul sieht ihn).
+# Hierher gehören:
+#   editor.cli ...                     (reine Funktion: Spec -> mp4)
+#   hosting.cli ...                    (Prefix kommt aus dem Profil, wenn eindeutig)
+#   longterm_memory.cli channel-list
+#   longterm_memory.cli channel-get <id>
+#   longterm_memory.cli channel-set <id> ...
 #
-# Nutzung (aus beliebigem cwd):
-#   ~/.openclaw/workspace-brainrothustler/bin/cli --channel sls longterm_memory.cli task
-#   ~/.openclaw/workspace-brainrothustler/bin/cli yt_clips.cli --channel sls next --recipe ytsls-besttrick
+# Kanalgebunden: ../channel <id> <modul.cli> [args...]
+#
+# Nutzung:
+#   ~/.openclaw/workspace-brainrothustler/bin/cli editor.cli probe --in memory/videos/x.mp4
 #
 set -euo pipefail
 
@@ -26,34 +30,11 @@ source "$VENV/bin/activate"
 export PYTHONPATH="$MODULES${PYTHONPATH:+:$PYTHONPATH}"
 cd "$ROOT"
 
-# `--channel <id>` / `--channel=<id>` aus argv ziehen -> BRAINROT_CHANNEL.
-args=()
-i=0
-while [ "$i" -lt "$#" ]; do
-  i=$((i + 1))
-  arg="${!i}"
-  case "$arg" in
-    --channel)
-      i=$((i + 1))
-      if [ "$i" -gt "$#" ]; then
-        echo "error: --channel needs a value" >&2
-        exit 2
-      fi
-      export BRAINROT_CHANNEL="${!i}"
-      ;;
-    --channel=*)
-      export BRAINROT_CHANNEL="${arg#--channel=}"
-      ;;
-    *)
-      args+=("$arg")
-      ;;
-  esac
-done
-
-if [ "${#args[@]}" -eq 0 ]; then
-  echo "usage: cli [--channel <id>] <modul.cli> [args...]" >&2
-  echo "module: editor.cli hosting.cli longterm_memory.cli yt_clips.cli" >&2
+if [ "$#" -eq 0 ]; then
+  echo "usage: cli <modul.cli> [args...]" >&2
+  echo "  kanal-frei: editor.cli, longterm_memory.cli task|channel-*" >&2
+  echo "  kanalgebunden: benutze ../channel <id> <modul.cli> [args...]" >&2
   exit 2
 fi
 
-exec python3 -m "${args[@]}"
+exec python3 -m "$@"

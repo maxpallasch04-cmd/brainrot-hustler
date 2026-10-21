@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# channel - BrainrotHustler Wrapper für KANALGEBUNDENE Aufrufe
+#
+# Setzt BRAINROT_CHANNEL und reicht an `cli` weiter (venv, PYTHONPATH, cwd).
+# Mehr tut er nicht: jedes Modul holt sich, was es braucht, selbst aus dem Profil.
+#
+# Der Kanal ist immer explizit. Kein "aktueller Kanal", kein Session-Zustand,
+# kein Auto-Pick.
+#
+# Nutzung:
+#   bin/channel <id> <modul.cli> [args...]
+#
+# Beispiele:
+#   ~/.openclaw/workspace-brainrothustler/bin/channel sls longterm_memory.cli task
+#   ~/.openclaw/workspace-brainrothustler/bin/channel sls yt_clips.cli next --recipe ytsls-besttrick
+#   ~/.openclaw/workspace-brainrothustler/bin/channel sls hosting.cli upload --file memory/sls/videos/x.mp4
+#
+set -euo pipefail
+
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+if [ "$#" -lt 2 ]; then
+  echo "usage: channel <id> <modul.cli> [args...]" >&2
+  echo "beispiel: channel sls longterm_memory.cli task" >&2
+  exit 2
+fi
+
+CHANNEL="$1"
+shift
+
+# Volle Validierung (a-z0-9-_ , max 32) macht brainrot_paths beim Modulstart.
+export BRAINROT_CHANNEL="$CHANNEL"
+
+exec "$HERE/cli" "$@"

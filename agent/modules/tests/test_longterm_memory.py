@@ -178,6 +178,9 @@ class LongTermMemoryTest(unittest.TestCase):
         t = self.mem.task(NOW)
         self.assertEqual(t["action"], "pipeline")
         self.assertEqual(t["entry"]["id"], b)
+        self.assertEqual(t["video"]["id"], b)
+        self.assertIn("#", t["video"]["label"])
+        self.assertIsInstance(t["video"]["plan_at_local"], str)
 
         # generated + overdue -> upload wins, pipeline is in `also`
         self.mem.markGenerated(a, title="T", file="memory/sls/videos/a.mp4", len_s=10)
@@ -185,14 +188,14 @@ class LongTermMemoryTest(unittest.TestCase):
         self.mem.conn.commit()
         t = self.mem.task(NOW, open_target=2)
         self.assertEqual(t["action"], "upload")
-        self.assertEqual(t["also"], ["pipeline"])
         self.assertEqual([v["id"] for v in t["videos"]], [a])
+        self.assertEqual(t["video"]["id"], a)
+        self.assertNotIn("also", t)
 
         # nothing overdue anymore -> pipeline is the action
         self.mem.upload(a, at=NOW)
         t = self.mem.task(NOW, open_target=2)
         self.assertEqual(t["action"], "pipeline")
-        self.assertEqual(t["also"], ["plan"])
 
         # only planning left -> plan
         t = self.mem.task(NOW, open_target=2, lead_s=0)
@@ -225,6 +228,48 @@ class LongTermMemoryTest(unittest.TestCase):
         self.assertEqual(self.mem.openCount(), 1)
         self.mem.upload(vid)
         self.assertEqual(self.mem.openCount(), 0)
+
+    def test_task_all_requires_a_channel(self):
+        from longterm_memory import task_all
+
+        empty = Path(self.tmp.name) / "leer.db"
+        with self.assertRaises(ChannelError):
+            task_all(empty)
+
+    def test_task_all_picks_most_urgent_channel(self):
+        from longterm_memory import task_all
+
+        conn = db.init_db(self.path)
+        db.upsert_channel(conn, "sls", quiet_start="", quiet_end="")
+        db.upsert_channel(conn, "other", quiet_start="", quiet_end="")
+        conn.close()
+
+        # sls: zwei offen -> idle
+        self.mem.addPlan("a", "r", plan_at=NOW + 48 * H)
+        self.mem.addPlan("b", "r", plan_at=NOW + 72 * H)
+
+        other = LongTermMemory(self.path, channel="other")
+        try:
+            other.addPlan("c", "r", plan_at=NOW + 48 * H)
+
+            # other hat zu wenig offen -> plan gewinnt
+            t = task_all(self.path, now=NOW)
+            self.assertEqual(t["action"], "plan")
+            self.assertEqual(t["channel"], "other")
+            self.assertEqual(len(t["channels"]), 2)
+            self.assertEqual({c["channel"] for c in t["channels"]}, {"sls", "other"})
+
+            # overdue Video in other -> upload gewinnt global
+            vid = other.listVideos()[0]["id"]
+            other.markGenerated(vid, title="T", file="f.mp4", len_s=5)
+            other.conn.execute("UPDATE video SET plan_at = ? WHERE id = ?", (NOW - H, vid))
+            other.conn.commit()
+            t = task_all(self.path, now=NOW)
+            self.assertEqual(t["action"], "upload")
+            self.assertEqual(t["channel"], "other")
+            self.assertEqual(t["videos"][0]["id"], vid)
+        finally:
+            other.close()
 
     def test_v1_migration(self):
         # v1: old columns, `Created`/`Uploaded` statuses, metric table, no channel.

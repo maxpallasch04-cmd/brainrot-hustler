@@ -51,8 +51,8 @@ def channel(required: bool = False) -> str | None:
     if not value:
         if required:
             raise ChannelError(
-                f"kein Kanal gesetzt - Aufruf mit '--channel <id>' oder "
-                f"{CHANNEL_ENV}=<id>"
+                "kein Kanal gesetzt - Aufruf über 'bin/channel <id> <modul>.cli ...' "
+                f"(setzt {CHANNEL_ENV})"
             )
         return None
     return valid_channel(value)

@@ -9,6 +9,10 @@
         {
           "pattern": "~/.openclaw/workspace-brainrothustler/bin/cli",
           "argPattern": "^(editor|hosting|longterm_memory|yt_clips)\\.cli( \\S+)*$"
+        },
+        {
+          "pattern": "~/.openclaw/workspace-brainrothustler/bin/channel",
+          "argPattern": "^[a-z0-9][a-z0-9_-]{0,31} (editor|hosting|longterm_memory|yt_clips)\\.cli( \\S+)*$"
         }
       ]
     }

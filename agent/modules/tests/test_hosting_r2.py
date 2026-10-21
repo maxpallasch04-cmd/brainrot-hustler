@@ -23,8 +23,11 @@ ENV = {
     "R2_SECRET_ACCESS_KEY": "SECRET",
     "R2_BUCKET": "brainrot",
     "R2_PUBLIC_BASE_URL": "https://pub-x.r2.dev/",
+    # Standalone-Betrieb ohne Kanal braucht einen expliziten Prefix.
+    "R2_PREFIX": "videos",
 }
-MANAGED = list(ENV) + ["R2_PREFIX", "R2_ENDPOINT", "R2_KEEP", "R2_QUOTA_GB"]
+MANAGED = list(ENV) + ["R2_PREFIX", "R2_ENDPOINT", "R2_KEEP", "R2_QUOTA_GB",
+                       "BRAINROT_CHANNEL", "BRAINROT_DB"]
 T0 = datetime(2026, 10, 12, 10, 0, 0, tzinfo=timezone.utc)
 
 
@@ -84,6 +87,44 @@ class ConfigTest(_Base):
         self.assertEqual(cfg["public_base_url"], "https://pub-x.r2.dev")
         self.assertEqual(cfg["prefix"], "videos/")
         self.assertTrue(r2.is_configured())
+
+    def test_without_channel_and_prefix_raises(self):
+        os.environ.update(ENV)
+        os.environ.pop("R2_PREFIX", None)
+        with self.assertRaises(r2.R2Error):
+            r2.config()
+
+    def test_channel_prefix_from_profile(self):
+        from longterm_memory import db as ltm
+
+        tmp = Path(tempfile.mkdtemp()) / "t.db"
+        conn = ltm.init_db(tmp)
+        ltm.upsert_channel(conn, "sls")
+        conn.close()
+        os.environ.update(ENV, BRAINROT_DB=str(tmp), BRAINROT_CHANNEL="sls")
+        self.assertEqual(r2.config()["prefix"], "brainrot/sls/")
+
+    def test_channel_beats_prefix_override(self):
+        from longterm_memory import db as ltm
+
+        tmp = Path(tempfile.mkdtemp()) / "t.db"
+        conn = ltm.init_db(tmp)
+        ltm.upsert_channel(conn, "sls")
+        conn.close()
+        os.environ.update(ENV, BRAINROT_DB=str(tmp), BRAINROT_CHANNEL="sls",
+                          R2_PREFIX="stale/")
+        self.assertEqual(r2.config()["prefix"], "brainrot/sls/")
+
+    def test_unknown_channel_raises(self):
+        from longterm_memory import db as ltm
+
+        tmp = Path(tempfile.mkdtemp()) / "t.db"
+        conn = ltm.init_db(tmp)
+        ltm.upsert_channel(conn, "sls")
+        conn.close()
+        os.environ.update(ENV, BRAINROT_DB=str(tmp), BRAINROT_CHANNEL="nope")
+        with self.assertRaises(r2.R2Error):
+            r2.config()
 
     def test_endpoint_and_prefix_override(self):
         os.environ.update(ENV, R2_ENDPOINT="https://custom.example", R2_PREFIX="clips")

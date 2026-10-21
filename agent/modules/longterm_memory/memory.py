@@ -271,8 +271,8 @@ class LongTermMemory:
         """One heartbeat decision: `upload` | `pipeline` | `plan` | `idle`.
 
         Priority: upload (upload time passed) -> pipeline (entry due) -> plan
-        (queue too short). Everything that is also pending lands in `also`,
-        the matching payload in `entry` / `videos`.
+        (queue too short). Es wird nur die Aktion ausgegeben, die jetzt dran ist -
+        alles andere kommt in einem späteren Heartbeat von selbst.
         """
         now = int(now) if now is not None else _now()
         open_n = self.openCount()
@@ -293,13 +293,39 @@ class LongTermMemory:
             "action": pending[0] if pending else "idle",
             "open": open_n,
             "target": target,
-            "also": pending[1:],
         }
         if due is not None:
             out["entry"] = due
         if over:
             out["videos"] = over
+
+        # Welches Video? Bei pipeline der fällige Eintrag, bei upload das dringendste.
+        chosen = None
+        if out["action"] == "pipeline":
+            chosen = due
+        elif out["action"] == "upload":
+            chosen = over[0]
+        if chosen is not None:
+            out["video"] = self._brief(chosen)
         return out
+
+    def _brief(self, row: dict) -> dict:
+        """Kurzprofil eines Videos für Meldungen (wer, was, wann)."""
+        tz = self.profile.get("tz", "")
+        plan_at = row.get("plan_at")
+        local = _local(plan_at, tz).strftime("%Y-%m-%d %H:%M") if plan_at else None
+        name = row.get("title") or row.get("idea") or f"Video {row['id']}"
+        return {
+            "id": row["id"],
+            "label": f"{name} (#{row['id']})",
+            "title": row.get("title", ""),
+            "idea": row.get("idea", ""),
+            "recipe": row.get("recipe", ""),
+            "file": row.get("file"),
+            "plan_at": plan_at,
+            "plan_at_local": local,
+            "status": row.get("status"),
+        }
 
     # ---- internals ------------------------------------------------------
 
@@ -310,3 +336,61 @@ class LongTermMemory:
                 f"video {video_id} not found in channel {self.channel!r}"
             )
         return row
+
+
+# ---- cross-channel ------------------------------------------------------
+
+#: Dringlichkeit über alle Kanäle: zeitkritisch zuerst.
+ACTION_ORDER = ("upload", "pipeline", "plan", "idle")
+
+
+def _most_urgent(results: list[dict], action: str) -> dict:
+    """Bei mehreren Kanälen mit derselben Aktion: der dringendste."""
+    if action == "upload":
+        return min(results, key=lambda r: (min(v["plan_at"] for v in r["videos"]),
+                                           r["channel"]))
+    if action == "pipeline":
+        return min(results, key=lambda r: (r["entry"]["plan_at"], r["channel"]))
+    if action == "plan":
+        # größtes Defizit zuerst, dann alphabetisch
+        return min(results, key=lambda r: (r["open"] - r["target"], r["channel"]))
+    return results[0]
+
+
+def task_all(path=None, *, now: int | None = None, lead_s: int | None = None,
+             open_target: int | None = None) -> dict:
+    """Eine Heartbeat-Entscheidung über **alle** aktiven Kanäle.
+
+    Kanal-frei: liefert die dringendste Aktion und den Kanal dazu. Ohne Kanal
+    gibt es nichts zu tun - das ist ein Fehler, kein `idle`.
+    """
+    conn = db.init_db(path)
+    try:
+        channels = [c for c in db.list_channels(conn) if c.get("active")]
+    finally:
+        conn.close()
+    if not channels:
+        raise db.ChannelError(
+            "kein Kanal angelegt - erst "
+            "`bin/cli longterm_memory.cli channel-set <id> ...`"
+        )
+
+    results = []
+    for profile in channels:
+        with LongTermMemory(path, channel=profile["id"]) as mem:
+            results.append(mem.task(now, lead_s, open_target))
+
+    chosen = results[0]
+    for action in ACTION_ORDER:
+        matches = [r for r in results if r["action"] == action]
+        if matches:
+            chosen = _most_urgent(matches, action)
+            break
+
+    out = dict(chosen)
+    out["channels"] = [
+        {"channel": r["channel"], "action": r["action"],
+         "open": r["open"], "target": r["target"]}
+        for r in results
+    ]
+    return out

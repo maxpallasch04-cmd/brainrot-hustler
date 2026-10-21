@@ -13,7 +13,7 @@ Kurzfassung:
 
 1. `bin/cli longterm_memory.cli channel-list` - ist wirklich keiner da?
 2. Werte im Chat erfragen (ein Block, Defaults mitliefern).
-3. `bin/cli --channel <id> longterm_memory.cli channel-set ...`
+3. `bin/cli longterm_memory.cli channel-set <id> ...`
 4. `channel-get` + `task` prüfen und das Ergebnis zeigen.
 
 ## Regeln

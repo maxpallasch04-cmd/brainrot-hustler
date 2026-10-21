@@ -138,8 +138,6 @@ def _candidate_windows(items) -> tuple[list[dict], list[str]]:
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="yt_clips")
     p.add_argument("--db", default=None, help="DB path (default: memory/brainrot.db)")
-    p.add_argument("--channel", default=None,
-                   help="Kanal-ID (default: $BRAINROT_CHANNEL)")
     sub = p.add_subparsers(dest="cmd", required=True)
 
     n = sub.add_parser("next", help="what to do next for one recipe: clip | find | download")
@@ -234,7 +232,7 @@ def main(argv: list[str] | None = None) -> int:
     sk.add_argument("--clip", type=int, required=True)
 
     args = p.parse_args(argv)
-    channel = args.channel or paths.channel(required=True)
+    channel = paths.channel(required=True)
 
     with Store(args.db, channel=channel) as store:
         if args.cmd == "next":

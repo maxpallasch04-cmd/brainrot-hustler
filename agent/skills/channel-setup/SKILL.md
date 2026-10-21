@@ -52,7 +52,7 @@ das dem Nutzer aber sagen.
 ## 3. Anlegen
 
 ```
-~/.openclaw/workspace-brainrothustler/bin/cli --channel <id> longterm_memory.cli channel-set \
+~/.openclaw/workspace-brainrothustler/bin/cli longterm_memory.cli channel-set <id> \
     --niche "<niche>" --recipes <a>,<b> --art "YT-Clip" \
     --open-target 2 --lead-h 4 \
     --quiet-start 22:00 --quiet-end 10:00 --tz Europe/Berlin \
@@ -65,8 +65,8 @@ Nur die Felder übergeben, die vom Default abweichen oder Pflicht sind.
 ## 4. Prüfen (nicht weglassen)
 
 ```
-bin/cli --channel <id> longterm_memory.cli channel-get     # Werte zurücklesen
-bin/cli --channel <id> longterm_memory.cli task            # muss plan|idle liefern
+bin/cli longterm_memory.cli channel-get <id>     # Werte zurücklesen
+bin/channel <id> longterm_memory.cli task            # muss plan|idle liefern
 ```
 
 - `channel-get` dem Nutzer zeigen (kurz, nicht als JSON-Block).

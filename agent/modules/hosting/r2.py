@@ -61,38 +61,46 @@ def _env_number(name: str, default, cast):
 
 
 def _channel_prefix(channel_id: str) -> str:
-    """Storage prefix of a channel: profile value, else ``brainrot/<id>/``.
+    """Prefix aus dem Kanalprofil. Unbekannter Kanal = Fehler, kein Fallback."""
+    from longterm_memory import db as ltm
 
-    The bucket is shared by all channels; only the key prefix separates them.
-    """
+    conn = ltm.init_db()
     try:
-        import brainrot_paths as paths  # noqa: F401  (side-effect free)
-        from longterm_memory import db as ltm
-
-        conn = ltm.init_db()
-        try:
-            profile = ltm.get_channel(conn, channel_id)
-        finally:
-            conn.close()
-        if profile and profile.get("r2_prefix"):
-            return str(profile["r2_prefix"])
-    except Exception:  # no DB / no module -> sane default, never block an upload
-        pass
-    return f"brainrot/{channel_id}/"
+        profile = ltm.get_channel(conn, channel_id)
+    finally:
+        conn.close()
+    if not profile:
+        raise R2Error(
+            f"unbekannter Kanal {channel_id!r} - erst "
+            f"`bin/cli longterm_memory.cli channel-set {channel_id} ...`"
+        )
+    return profile.get("r2_prefix") or f"brainrot/{channel_id}/"
 
 
 def config() -> dict:
-    """Read and validate the R2 configuration from the environment."""
+    """Read and validate the R2 configuration from the environment.
+
+    Der Prefix ist Kanalsache: `BRAINROT_CHANNEL` (setzt `bin/channel`) → Prefix
+    aus dem Profil. Ohne Kanal gilt `R2_PREFIX` (Standalone/Tests); ohne beides
+    ist ein Upload ein Fehler, kein stiller Default.
+    """
     missing = [name for name in REQUIRED if not _env(name)]
     if missing:
         raise R2Error("missing R2 config: " + ", ".join(missing)
                       + " - set the R2_* env vars (OpenClaw store/env, see TOOLS.md)")
     account = _env("R2_ACCOUNT_ID")
-    prefix = _env("R2_PREFIX")
-    if not prefix:
-        channel_id = _env("BRAINROT_CHANNEL")
-        prefix = _channel_prefix(channel_id) if channel_id else DEFAULT_PREFIX
-    prefix = (prefix or "").strip("/")
+
+    channel_id = _env("BRAINROT_CHANNEL")
+    if channel_id:
+        prefix = _channel_prefix(channel_id)
+    else:
+        prefix = _env("R2_PREFIX")
+        if not prefix:
+            raise R2Error(
+                "kein Kanal gesetzt - Uploads laufen über "
+                "`bin/channel <id> hosting.cli ...` (oder R2_PREFIX explizit setzen)"
+            )
+    prefix = prefix.strip("/")
     return {
         "endpoint": _env("R2_ENDPOINT") or f"https://{account}.r2.cloudflarestorage.com",
         "access_key_id": _env("R2_ACCESS_KEY_ID"),

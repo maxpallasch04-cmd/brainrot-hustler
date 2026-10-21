@@ -2,10 +2,12 @@
 
 from .db import (DEFAULT_DB, ChannelError, connect, get_channel, init_db,
                  list_channels, require_channel, upsert_channel)
-from .memory import (DEFAULT_LEAD_S, DEFAULT_OPEN_TARGET, LongTermMemory,
-                     Status, VideoArt, in_quiet_hours)
+from .memory import (ACTION_ORDER, DEFAULT_LEAD_S, DEFAULT_OPEN_TARGET,
+                     LongTermMemory, Status, VideoArt, in_quiet_hours,
+                     task_all)
 
 __all__ = ["LongTermMemory", "Status", "VideoArt", "DEFAULT_LEAD_S",
-           "DEFAULT_OPEN_TARGET", "ChannelError", "in_quiet_hours",
+           "DEFAULT_OPEN_TARGET", "ACTION_ORDER", "task_all",
+           "ChannelError", "in_quiet_hours",
            "connect", "init_db", "DEFAULT_DB",
            "get_channel", "require_channel", "list_channels", "upsert_channel"]

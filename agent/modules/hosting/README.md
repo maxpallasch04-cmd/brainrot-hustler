@@ -16,18 +16,16 @@ Nach jedem Upload wird **aufgeräumt**: nur die neuesten `R2_KEEP` Objekte bleib
 wird nur **innerhalb des eigenen Prefix** - Kanäle löschen sich nicht gegenseitig.
 Löschen ist gratis und läuft in einem einzigen Bulk-Request.
 
-## Kanäle: ein Bucket, ein Prefix pro Kanal
+## Prefix: Kanalsache
+
+`hosting` holt den Prefix aus dem Kanalprofil:
+
+- `BRAINROT_CHANNEL` gesetzt (`bin/channel <id> ...`) → `r2_prefix` aus dem Profil.
+- **ohne Kanal** → `R2_PREFIX`, sonst Fehler. Kein Auto-Pick, kein stiller Default.
 
 Alle Kanäle teilen sich Bucket und Zugänge (keine zweite `.env`, kein zweites
-Token). Getrennt wird ausschließlich über den Key-Prefix:
-
-- `BRAINROT_CHANNEL` gesetzt (macht der Wrapper via `--channel`) → Prefix aus dem
-  Kanalprofil (`r2_prefix`, Default `brainrot/<id>/`).
-- `R2_PREFIX` gesetzt → gewinnt immer (manueller Override).
-- Nichts gesetzt → alter Default `videos/`.
-
-Dadurch gilt `R2_KEEP` **pro Kanal**: ein Upload von Kanal A löscht nicht das
-Video von Kanal B.
+Token). Getrennt wird ausschließlich über den Prefix; `prune` arbeitet nur darin,
+also löscht ein Kanal nicht die Videos eines anderen.
 
 ## CLI
 
@@ -55,8 +53,8 @@ kein Fallback-Loader.
 
 Pflicht: `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`,
 `R2_PUBLIC_BASE_URL` (r2.dev-Subdomain oder eigene Domain).
-Optional: `R2_ENDPOINT`, `R2_PREFIX` (Default `videos/`, überschreibt den
-Profil-Prefix), `R2_KEEP` (Default 1), `R2_QUOTA_GB` (Default 10).
+Optional: `R2_ENDPOINT`, `R2_PREFIX` (nur für Aufrufe **ohne** Kanal; Default
+`videos/`), `R2_KEEP` (Default 1), `R2_QUOTA_GB` (Default 10).
 Braucht `boto3` (`pip install -r modules/requirements.txt`). Fehler werfen
 `hosting.R2Error` (fehlende Config, boto3 fehlt, Bucket-Fehler).
 

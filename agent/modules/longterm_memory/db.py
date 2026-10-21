@@ -25,6 +25,11 @@ WORKSPACE = paths.WORKSPACE
 
 DEFAULT_DB = Path(os.environ.get("BRAINROT_DB") or paths.db_path())
 
+
+def default_db() -> Path:
+    """DB-Pfad, zur Aufrufzeit aufgelöst (``BRAINROT_DB`` kann später kommen)."""
+    return Path(os.environ.get("BRAINROT_DB") or paths.db_path())
+
 SCHEMA_VERSION = 3
 
 SCHEMA = """
@@ -130,7 +135,7 @@ def _migrate(conn: sqlite3.Connection) -> None:
 
 def connect(path: str | os.PathLike | None = None) -> sqlite3.Connection:
     """Open a connection with sane defaults (FKs on, row access by name)."""
-    path = Path(path) if path is not None else DEFAULT_DB
+    path = Path(path) if path is not None else default_db()
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
@@ -176,7 +181,7 @@ def require_channel(conn: sqlite3.Connection, channel_id: str) -> dict:
     if profile is None:
         raise ChannelError(
             f"unbekannter Kanal {channel_id!r} - anlegen mit "
-            f"`longterm_memory.cli channel-set --channel {channel_id} ...`"
+            f"`bin/cli longterm_memory.cli channel-set {channel_id} ...`"
         )
     return profile
 

@@ -15,10 +15,11 @@ Danach liegen alle Dateien unter `memory/<channel>/`.
 
 1. **Plan-Eintrag holen.** Die DB ist die Warteschlange, es gibt keine Datei:
    ```
-   ~/.openclaw/workspace-brainrothustler/bin/cli --channel <id> longterm_memory.cli nextdue
+   ~/.openclaw/workspace-brainrothustler/bin/channel <id> longterm_memory.cli nextdue
    ```
    Liefert `id`, `idea`, `recipe`, `plan_at`, `art` - oder `null` (nichts fällig).
-   Im Heartbeat kommt der Eintrag direkt aus `task` (`action: pipeline`, Feld `entry`).
+   Im Heartbeat kommt der Eintrag direkt aus `task` (`action: pipeline`, Felder
+   `channel` + `entry`) - dann `nextdue` nicht extra aufrufen.
 2. **Rezept laden** (`read` `recipes/<recipe>.md`). Sein `art`-Feld wählt den
    Generierungsskill; seine Abschnitte (Auswahl, Background, Musik, Schnitt,
    Overlays) sind die Vorgabe.
@@ -38,7 +39,7 @@ Danach liegen alle Dateien unter `memory/<channel>/`.
    auf den Kontext aus Schritt 3.
 5. **Video hosten.**
    ```
-   ~/.openclaw/workspace-brainrothustler/bin/cli --channel <id> hosting.cli upload --file memory/<channel>/videos/<name>.mp4
+   ~/.openclaw/workspace-brainrothustler/bin/channel <id> hosting.cli upload --file memory/<channel>/videos/<name>.mp4
    ```
    Die `url` aus dem JSON parsen. Der Bucket ist für alle Kanäle derselbe; getrennt
    wird nur über `r2_prefix` aus dem Profil. Innerhalb des Prefix bleibt nur das
@@ -46,8 +47,8 @@ Danach liegen alle Dateien unter `memory/<channel>/`.
 6. **Eintrag erfassen + markieren.** Erst messen, dann in der DB als *generiert*
    eintragen - der Eintrag bleibt offen, bis er hochgeladen ist.
    ```
-   ~/.openclaw/workspace-brainrothustler/bin/cli --channel <id> editor.cli probe --in memory/<channel>/videos/<name>.mp4   # 9:16, Höhe = 1280, Länge
-   ~/.openclaw/workspace-brainrothustler/bin/cli --channel <id> longterm_memory.cli generated <id> \
+   ~/.openclaw/workspace-brainrothustler/bin/channel <id> editor.cli probe --in memory/<channel>/videos/<name>.mp4   # 9:16, Höhe = 1280, Länge
+   ~/.openclaw/workspace-brainrothustler/bin/channel <id> longterm_memory.cli generated <id> \
        --title "<t>" --description "<d>" --file memory/<channel>/videos/<name>.mp4 --len-s <s> [--theme "<theme>"]
    ```
    Die `id` aus Schritt 1 verwenden - kein neuer Eintrag, kein Duplikat.
