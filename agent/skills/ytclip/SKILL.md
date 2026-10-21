@@ -58,7 +58,9 @@ YT-Spezifische steht hier — die Pipeline ist generisch.
 ### `find` — clipwürdige Stellen finden
 
    Wonach du suchst, steht im Rezept (`## Auswahl`, `## Clips`). Das sind die
-   Werkzeuge dafür:
+   Werkzeuge dafür. Für den Start-Anker gilt die Reihenfolge: **Score-Einblendung
+   + `pre_roll`**, dann **`subtitles snap`** auf die Satzgrenze - und nur wenn
+   beides nichts hergibt, `motion` (Schritt 5).
 
    1. **Audio-Peaks + Kapitel** (grobe Kandidaten, ohne Vision):
       ```
@@ -80,11 +82,13 @@ YT-Spezifische steht hier — die Pipeline ist generisch.
       ~/.openclaw/workspace-brainrothustler/bin/channel <id> yt_clips.cli ocr --clip <id> --box <x,y,w,h> --step 1
       ```
       Liefert Werte `0.0–10.0`; `first_stable` ist der **End-Anker**, nicht die Ansage.
-   5. **Bewegung messen** (Start-Anker):
+   5. **Bewegung messen** (nur Fallback):
       ```
       ~/.openclaw/workspace-brainrothustler/bin/channel <id> yt_clips.cli motion --source <id> --from <t> --to <t>
       ```
-      `first_motion` = erster wirklich bewegter Frame (nicht aus dem Transkript raten).
+      `first_motion` = erster wirklich bewegter Frame im **ganzen Bild** - bei
+      Kameraschwenk oder Publikum entsprechend früh und unzuverlässig. Nur
+      benutzen, wenn Ansage und Score-Anker keinen Start hergeben.
 
    Kandidaten eintragen — als Fenster oder als Score-Anker:
    ```

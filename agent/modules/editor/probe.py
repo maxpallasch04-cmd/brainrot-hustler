@@ -26,7 +26,7 @@ def ffmpeg_exe() -> str:
         return imageio_ffmpeg.get_ffmpeg_exe()
     except Exception as exc:  # pragma: no cover - Umgebungssache
         raise ProbeError(
-            "ffmpeg not found: install ffmpeg or set EDITOR_FFMPEG"
+            "ffmpeg not found: `sudo apt install ffmpeg`, `pip install imageio-ffmpeg` or set EDITOR_FFMPEG"
         ) from exc
 
 

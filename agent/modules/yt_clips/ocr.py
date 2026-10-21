@@ -20,6 +20,8 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from . import media
+
 NUMBER_RE = re.compile(r"\d{1,2}(?:[.,]\d{1,2})?")
 _RAPID_ENGINE = None
 
@@ -172,29 +174,23 @@ def scan(path, box, times, *, engine: str = "auto", pad: int = 6,
          scale: float = 3.0, lo: float = 0.0, hi: float = 10.0,
          debug_dir: str | None = None, step: float = 1.0) -> dict:
     """OCR the fixed box at ``times``. Returns hits, runs and the first hits."""
-    from moviepy import VideoFileClip
-
-    clip = VideoFileClip(str(path))
     hits: list[dict] = []
     checked = 0
-    try:
-        duration = float(clip.duration or 0.0)
-        for t in times:
-            t = max(0.0, min(float(t), max(0.0, duration - 0.05)))
-            frame = clip.get_frame(t)
-            got = read_frame(frame, box, engine=engine, pad=pad, scale=scale,
-                             lo=lo, hi=hi)
-            checked += 1
-            if debug_dir:
-                try:
-                    _prepare(frame, box, pad=pad, scale=scale).save(
-                        Path(debug_dir) / f"score-{t:09.2f}.png")
-                except OSError:
-                    pass
-            if got:
-                hits.append({"t": round(t, 3), **got})
-    finally:
-        clip.close()
+    duration = float(media.video_info(path).get("duration") or 0.0)
+    for t in times:
+        t = max(0.0, min(float(t), max(0.0, duration - 0.05)))
+        frame = media.read_frame_at(path, t)
+        got = read_frame(frame, box, engine=engine, pad=pad, scale=scale,
+                         lo=lo, hi=hi)
+        checked += 1
+        if debug_dir:
+            try:
+                _prepare(frame, box, pad=pad, scale=scale).save(
+                    Path(debug_dir) / f"score-{t:09.2f}.png")
+            except OSError:
+                pass
+        if got:
+            hits.append({"t": round(t, 3), **got})
 
     grouped = runs(hits, step=step)
     stable = next((r for r in grouped if r["count"] >= 2), None)

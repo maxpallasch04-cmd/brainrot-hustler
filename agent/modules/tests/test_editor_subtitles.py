@@ -3,6 +3,7 @@
 Run: python3 tests/test_subtitles.py
 """
 
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -10,9 +11,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from moviepy import ColorClip, VideoFileClip  # noqa: E402
-
 from editor import subtitles as subs  # noqa: E402
+from editor.probe import ffmpeg_exe, probe  # noqa: E402
 
 SRT = """1
 00:00:01,000 --> 00:00:03,500
@@ -164,9 +164,10 @@ class BurnTest(unittest.TestCase):
     def test_burn_hardsubs_and_keeps_size(self):
         tmp = Path(tempfile.mkdtemp())
         video = tmp / "clip.mp4"
-        clip = ColorClip(size=(160, 90), color=(30, 30, 30), duration=1.0)
-        clip.write_videofile(str(video), fps=10, codec="libx264", audio=False, logger=None)
-        clip.close()
+        subprocess.run([ffmpeg_exe(), "-y", "-loglevel", "error",
+                        "-f", "lavfi", "-i", "color=c=0x1e1e1e:s=160x90:d=1:r=10",
+                        "-c:v", "libx264", "-pix_fmt", "yuv420p", str(video)],
+                       check=True)
 
         srt = tmp / "clip.srt"
         subs.write_srt([{"start": 0.1, "end": 0.9, "text": "what a line!"}], srt)
@@ -174,9 +175,9 @@ class BurnTest(unittest.TestCase):
         out = tmp / "out.mp4"
         got = subs.burn(video, srt, out, force_style=subs.build_style(font_size=24, outline=2))
         self.assertTrue(Path(got).exists())
-        with VideoFileClip(str(out)) as check:
-            self.assertEqual(check.size, [160, 90])
-            self.assertAlmostEqual(check.duration, 1.0, places=1)
+        info = probe(str(out))
+        self.assertEqual(tuple(info["size"]), (160, 90))
+        self.assertAlmostEqual(info["duration"], 1.0, places=1)
 
 
 if __name__ == "__main__":

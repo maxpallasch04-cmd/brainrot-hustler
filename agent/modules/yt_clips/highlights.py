@@ -5,7 +5,7 @@ Two local signals, no API calls:
 1. **Chapters** — many sports videos ship chapter markers (yt-dlp gives them at
    download time). Free, already labelled.
 2. **Audio peaks** — crowd roar / commentator excitement shows up as loudness
-   spikes. The envelope is computed locally with MoviePy + NumPy.
+   spikes. The envelope is computed locally with ffmpeg + NumPy.
 
 The vision model is *not* used here — it is only needed once per video for the
 format (see ``skills/ytclip``). An optional text-only ranking call can follow.
@@ -15,6 +15,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from . import media
+
 DEFAULT_FPS = 10          # envelope samples per second
 DEFAULT_WINDOW_S = 1.0    # smoothing window
 DEFAULT_K = 1.5           # peak threshold: mean + k * std
@@ -23,35 +25,33 @@ DEFAULT_LENGTH = 18.0     # candidate clip length
 DEFAULT_MIN_GAP = 20.0    # minimum distance between two peaks
 
 
-def loudness_envelope(path, *, fps: int = DEFAULT_FPS, window_s: float = DEFAULT_WINDOW_S):
+def loudness_envelope(path, *, fps: int = DEFAULT_FPS,
+                      window_s: float = DEFAULT_WINDOW_S,
+                      rate: int = media.DEFAULT_PCM_RATE):
     """Return (envelope, fps): smoothed absolute amplitude over the audio track.
 
     The track is read at its native rate and aggregated into ``fps`` buckets
     (no resampling of the signal), then smoothed over ``window_s`` seconds.
     """
-    from moviepy import AudioFileClip
-
-    audio = AudioFileClip(str(path))
+    step = max(1, int(round(float(rate) / float(max(1, fps)))))
+    env_parts: list[np.ndarray] = []
+    carry = np.empty(0, dtype=np.float32)
+    total = 0
     try:
-        samples = audio.to_soundarray(quantize=False)
-        duration = float(audio.duration or 0.0)
-        native = float(audio.fps or 0.0)
-    finally:
-        audio.close()
-    if samples is None or samples.size == 0:
+        for chunk in media.iter_pcm(path, rate=rate):
+            total += int(chunk.size)
+            data = np.concatenate((carry, chunk)) if carry.size else chunk
+            n = (data.size // step) * step
+            if n:
+                env_parts.append(np.abs(data[:n]).reshape(-1, step).mean(axis=1))
+            carry = data[n:]
+    except RuntimeError as exc:
+        if total == 0:
+            raise ValueError(f"no audio track in {path}") from exc
+        raise
+    if total == 0:
         raise ValueError(f"no audio track in {path}")
-    mono = samples.mean(axis=1) if samples.ndim > 1 else samples
-    mono = np.asarray(mono, dtype=np.float32).ravel()
-
-    # Effective sample rate: prefer samples/duration — robust against the
-    # resampling MoviePy does when reading (it may not match `audio.fps`).
-    rate = (mono.size / duration) if duration > 0 else (native or float(fps))
-    block = max(1, int(round(rate / float(fps))))
-    n = mono.size // block
-    if n < 1:
-        env = np.abs(mono)
-    else:
-        env = np.abs(mono[:n * block]).reshape(n, block).mean(axis=1)
+    env = np.concatenate(env_parts) if env_parts else np.abs(carry)
     win = max(1, int(round(window_s * fps)))
     env = np.convolve(env, np.ones(win, dtype=np.float32) / win, mode="same")
     return env, int(fps)

@@ -5,27 +5,22 @@ transcript or a score anchor. A frame-difference profile over a source window
 finds the first/last actually moving frame for a few milliseconds of CPU — no
 vision model, no API, no extra dependencies.
 
-The profile is intentionally coarse: frames are decoded at ``fps`` (default 4),
-converted to grayscale and downscaled to ``width`` px before diffing. That is
-enough to separate "static scoreboard / replay / standstill" from "skater is
-moving" without holding full frames in memory.
+The profile is intentionally coarse: ffmpeg decodes at ``fps`` (default 4),
+converts to grayscale and scales to ``width`` px before the data reaches Python.
+That separates "static scoreboard / replay / standstill" from "skater is moving"
+without ever holding a full frame in memory.
 """
 
 from __future__ import annotations
 
 import numpy as np
 
+from . import media
+
 DEFAULT_FPS = 4.0
 DEFAULT_WIDTH = 160
 DEFAULT_FLOOR = 0.005      # 0.5 % mean pixel change ~= 1.3 grey levels
 DEFAULT_MERGE_GAP = 0.4    # join motion runs separated by < 0.4 s
-
-
-def _small_gray(frame, width: int) -> np.ndarray:
-    gray = frame.mean(axis=2) if frame.ndim == 3 else frame
-    h, w = gray.shape[:2]
-    stride = max(1, int(round(w / float(max(1, width)))))
-    return gray[::stride, ::stride].astype(np.float32)
 
 
 def profile(path, *, start: float = 0.0, end: float | None = None,
@@ -38,32 +33,27 @@ def profile(path, *, start: float = 0.0, end: float | None = None,
     moves), the contiguous motion ``segments``, and the sampling parameters so a
     caller can judge whether the measurement is sensitive enough.
     """
-    from moviepy import VideoFileClip
+    info = media.video_info(path)
+    duration = float(info.get("duration") or 0.0)
+    end = duration if end is None else min(float(end), duration)
+    start = max(0.0, float(start))
+    if end <= start or end - start < 0.2:
+        raise ValueError(f"window too short: {start:.2f}..{end:.2f}s")
+    step = 1.0 / max(0.5, float(fps))
 
-    clip = VideoFileClip(str(path))
-    try:
-        duration = float(clip.duration or 0.0)
-        end = duration if end is None else min(float(end), duration)
-        start = max(0.0, float(start))
-        if end <= start or end - start < 0.2:
-            raise ValueError(f"window too short: {start:.2f}..{end:.2f}s")
-        step = 1.0 / max(0.5, float(fps))
-        times = list(np.arange(start, end, step))
-        if not times:
-            raise ValueError("empty window")
-
-        diffs: list[float] = []
-        prev = None
-        for t in times:
-            frame = clip.get_frame(min(max(t, 0.0), max(0.0, duration - 1e-3)))
-            small = _small_gray(frame, width)
-            if prev is None or prev.shape != small.shape:
-                diffs.append(0.0)
-            else:
-                diffs.append(float(np.abs(small - prev).mean()) / 255.0)
-            prev = small
-    finally:
-        clip.close()
+    diffs: list[float] = []
+    prev = None
+    for _, frame in media.iter_gray_frames(path, start=start, end=end,
+                                           fps=fps, width=width):
+        small = frame.astype(np.float32)
+        if prev is None or prev.shape != small.shape:
+            diffs.append(0.0)
+        else:
+            diffs.append(float(np.abs(small - prev).mean()) / 255.0)
+        prev = small
+    if not diffs:
+        raise ValueError("empty window")
+    times = [start + i * step for i in range(len(diffs))]
 
     arr = np.asarray(diffs, dtype=np.float32)
     if threshold is None:
@@ -99,5 +89,6 @@ def profile(path, *, start: float = 0.0, end: float | None = None,
         "first_motion": round(merged[0][0], 3) if merged else None,
         "last_motion": round(merged[-1][1], 3) if merged else None,
         "moving_ratio": round(float(moving.mean()) if moving.size else 0.0, 3),
-        "segments": [{"start": round(s, 3), "end": round(e, 3)} for s, e in merged],
+        "segments": [{"start": round(s, 3), "end": round(e, 3)}
+                     for s, e in merged],
     }

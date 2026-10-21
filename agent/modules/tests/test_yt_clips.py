@@ -5,6 +5,7 @@ Run: python3 tests/test_yt_clips.py
 
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -15,7 +16,7 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import numpy as np  # noqa: E402
-from moviepy import ColorClip, ImageSequenceClip, VideoFileClip  # noqa: E402
+from editor.probe import ffmpeg_exe  # noqa: E402
 from PIL import Image  # noqa: E402
 
 from yt_clips import crops  # noqa: E402
@@ -26,6 +27,17 @@ from yt_clips import ocr  # noqa: E402
 from yt_clips.cli import _candidate_windows, main as yt_main  # noqa: E402
 from yt_clips.store import Store  # noqa: E402
 from longterm_memory import db as ltm  # noqa: E402
+
+
+def write_video(path, frames, fps=10):
+    """Bildfolge als MP4 - ffmpeg statt MoviePy."""
+    tmp = Path(tempfile.mkdtemp())
+    for i, frame in enumerate(frames):
+        Image.fromarray(np.asarray(frame, dtype=np.uint8)).save(tmp / f"{i:04d}.png")
+    subprocess.run([ffmpeg_exe(), "-y", "-loglevel", "error",
+                    "-framerate", str(fps), "-i", str(tmp / "%04d.png"),
+                    "-c:v", "libx264", "-pix_fmt", "yuv420p",
+                    "-r", str(fps), str(path)], check=True)
 
 
 def make_store(path) -> Store:
@@ -233,9 +245,7 @@ class MotionProfileTest(unittest.TestCase):
     def test_static_clip_has_no_motion(self):
         tmp = Path(tempfile.mkdtemp())
         src = tmp / "static.mp4"
-        clip = ColorClip(size=(160, 90), color=(20, 20, 20), duration=1.0)
-        clip.write_videofile(str(src), fps=10, codec="libx264", audio=False, logger=None)
-        clip.close()
+        write_video(src, [np.full((90, 160, 3), 20, dtype=np.uint8)] * 10, fps=10)
         got = motion.profile(src, start=0, end=1.0, fps=10)
         self.assertIsNone(got["first_motion"])
         self.assertIsNone(got["last_motion"])
@@ -249,9 +259,7 @@ class MotionProfileTest(unittest.TestCase):
             frame[30:60, x:x + 20] = 255
             frames.append(frame)
         src = tmp / "moving.mp4"
-        seq = ImageSequenceClip(frames, fps=10)
-        seq.write_videofile(str(src), fps=10, codec="libx264", audio=False, logger=None)
-        seq.close()
+        write_video(src, frames, fps=10)
         got = motion.profile(src, start=0, end=2.0, fps=10, width=160)
         self.assertIsNotNone(got["first_motion"])
         self.assertLess(got["first_motion"], 0.6)
@@ -351,10 +359,7 @@ class ScoreOcrTest(unittest.TestCase):
         with_score = blank.copy()
         with_score[:107] = np.array(Image.fromarray(score).resize((320, 107)))
         video = tmp / "score.mp4"
-        clip = ImageSequenceClip([blank, with_score], fps=1)
-        clip.write_videofile(str(video), fps=1, codec="libx264", audio=False,
-                             logger=None)
-        clip.close()
+        write_video(video, [blank, with_score], fps=1)
         got = ocr.scan(video, (0, 0, 320, 107), [0.0, 1.0], step=1.0)
         self.assertEqual(got["checked"], 2)
         self.assertIsNotNone(got["first"])

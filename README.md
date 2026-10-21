@@ -241,13 +241,14 @@ Fremdpakete (alles andere ist stdlib):
 | Modul | Braucht |
 |---|---|
 | `hosting` | `boto3`, `requests` |
-| `yt_clips` | `yt-dlp`, `moviepy`, `numpy`, `Pillow` |
-| `editor` | `imageio-ffmpeg` (bringt das ffmpeg-Binary mit) |
+| `yt_clips` | `yt-dlp`, `numpy`, `Pillow` |
+| `editor` | `ffmpeg` (System) |
 | `longterm_memory` | - (nur stdlib) |
 
 VPS einrichten (genau einmal, aus dem Workspace-Root):
 
 ```bash
+sudo apt install -y ffmpeg
 python3 -m venv .venv
 .venv/bin/pip install --upgrade pip
 .venv/bin/pip install -r modules/requirements.txt
@@ -277,7 +278,10 @@ cd modules
 
 Windows (kein venv), **aus `modules/`**: `python -m pytest tests` bzw.
 `python -m hosting.cli …`.
-`ffmpeg` liefert `imageio-ffmpeg` selbst; ein System-`ffmpeg` ist optional.
+`ffmpeg` kommt **vom System** (`apt install ffmpeg`): enthält libass für
+`subtitles burn` und bekommt Sicherheitsupdates über apt. `imageio-ffmpeg`
+bleibt nur Fallback für Hosts ohne System-Binary (Windows); `EDITOR_FFMPEG`
+überschreibt beides.
 
 ---
 

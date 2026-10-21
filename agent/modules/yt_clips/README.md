@@ -93,13 +93,17 @@ Engine ist **Tesseract** (`--engine rapidocr` als optionaler Fallback).
 Ausgabe: `first`, `first_stable`, `runs`, `checked`, `empty`. `first_stable` ist
 der **End-Anker** für einen Score-Clip, nicht die Ansage.
 
-## Motion (Start-Anker)
+## Motion (Fallback-Anker)
 
-Frame-Differenzen lokal (MoviePy + NumPy), `--fps` (Default 4), `--width`
+Frame-Differenzen lokal (ffmpeg + NumPy), `--fps` (Default 4), `--width`
 (Default 160), `--threshold` adaptiv. Ausgabe: `first_motion`, `last_motion`,
 `moving_ratio`, `segments`.
 
-`first_motion` ist der **Start-Anker** (minus ~2 s Anlauf), nicht die Ansage.
+**Nur Fallback.** Primär sind Score-Einblendung + `pre_roll` und die
+Satzgrenzen aus dem Transkript (`subtitles snap`). `motion` misst das **ganze
+Bild**, nicht die Action-Box - Kameraschwenk und Publikum zählen mit. Nutzen,
+wenn weder Ansage noch Score-Anker einen brauchbaren Start geben; `first_motion`
+ist dann ein grober Anker (4 fps ≈ ±0,25 s), kein Schnittpunkt.
 
 ## Kandidaten
 
