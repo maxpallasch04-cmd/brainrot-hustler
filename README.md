@@ -241,14 +241,14 @@ Fremdpakete (alles andere ist stdlib):
 | Modul | Braucht |
 |---|---|
 | `hosting` | `boto3`, `requests` |
-| `yt_clips` | `yt-dlp`, `numpy`, `Pillow` |
+| `yt_clips` | `yt-dlp`, `numpy`, `Pillow`; `tesseract-ocr` (System) |
 | `editor` | `ffmpeg` (System) |
 | `longterm_memory` | - (nur stdlib) |
 
 VPS einrichten (genau einmal, aus dem Workspace-Root):
 
 ```bash
-sudo apt install -y ffmpeg
+sudo apt install -y ffmpeg tesseract-ocr
 python3 -m venv .venv
 .venv/bin/pip install --upgrade pip
 .venv/bin/pip install -r modules/requirements.txt
@@ -282,6 +282,13 @@ Windows (kein venv), **aus `modules/`**: `python -m pytest tests` bzw.
 `subtitles burn` und bekommt Sicherheitsupdates über apt. `imageio-ffmpeg`
 bleibt nur Fallback für Hosts ohne System-Binary (Windows); `EDITOR_FFMPEG`
 überschreibt beides.
+
+**Tesseract** (OCR der Score-Einblendung) kommt ebenfalls vom System:
+`apt install tesseract-ocr`. Das Paket bringt `eng` als Default mit, und für
+Ziffern wie `9.10` braucht es kein weiteres Sprachpaket. Liegt das Binary nicht
+im PATH, zeigt `TESSERACT_CMD` darauf. Ohne Tesseract läuft alles andere weiter,
+nur `yt_clips ocr` fehlt (Fallback: `--engine rapidocr`, wenn
+`rapidocr-onnxruntime` installiert ist).
 
 ---
 
