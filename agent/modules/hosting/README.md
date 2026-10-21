@@ -1,75 +1,47 @@
 # hosting
 
-> **Aufruf:** `~/.openclaw/workspace-brainrothustler/bin/cli <modul>.cli <args>`
-> (Workspace-Wrapper, siehe `TOOLS.md`) — aus jedem cwd, venv wird automatisch aktiviert.
+Dateien raus und rein über **Cloudflare R2**: `upload` gibt eine öffentliche URL
+zurück, `download` holt eine Datei wieder. Alle Kanäle teilen sich einen Bucket;
+getrennt wird nur über den Prefix aus dem Kanalprofil.
 
-Gib ihm eine Datei → bekomme eine öffentliche URL; oder gib ihm einen Link →
-bekomme eine Datei.
-
-Uploads gehen in den eigenen **Cloudflare-R2-Bucket** (S3-kompatibel): läuft von
-Rechenzentrums-IPs, kommerziell erlaubt, 10 GB/Monat gratis, Egress frei.
-Zugänge aus dem **OpenClaw-Team-Store** (Kind `env`, siehe `TOOLS.md`). Kein
-anonymer Host, kein Fallback.
-
-Nach jedem Upload wird **aufgeräumt**: nur die neuesten `R2_KEEP` Objekte bleiben
-(Default 1), die Gesamtgröße bleibt unter `R2_QUOTA_GB` (Default 10). Gelöscht
-wird nur **innerhalb des eigenen Prefix** - Kanäle löschen sich nicht gegenseitig.
-Löschen ist gratis und läuft in einem einzigen Bulk-Request.
-
-## Prefix: Kanalsache
-
-`hosting` holt den Prefix aus dem Kanalprofil:
-
-- `BRAINROT_CHANNEL` gesetzt (`bin/channel <id> ...`) → `r2_prefix` aus dem Profil.
-- **ohne Kanal** → `R2_PREFIX`, sonst Fehler. Kein Auto-Pick, kein stiller Default.
-
-Alle Kanäle teilen sich Bucket und Zugänge (keine zweite `.env`, kein zweites
-Token). Getrennt wird ausschließlich über den Prefix; `prune` arbeitet nur darin,
-also löscht ein Kanal nicht die Videos eines anderen.
+`hosting` kennt keine Kanäle im Code - es liest den Prefix, der zum Aufruf gehört.
+Deshalb läuft jeder Upload über `bin/channel`.
 
 ## CLI
 
 ```
-~/.openclaw/workspace-brainrothustler/bin/cli hosting.cli upload --file out.mp4                     # hochladen + aufräumen
-~/.openclaw/workspace-brainrothustler/bin/cli hosting.cli upload --file out.mp4 --no-prune          # ohne Aufräumen
-~/.openclaw/workspace-brainrothustler/bin/cli hosting.cli upload --file out.mp4 --key videos/x.mp4  # eigener Key
-echo "hi" | ~/.openclaw/workspace-brainrothustler/bin/cli hosting.cli upload --file - --filename hello.txt
-~/.openclaw/workspace-brainrothustler/bin/cli hosting.cli usage                                     # Objekte + freier Platz
-~/.openclaw/workspace-brainrothustler/bin/cli hosting.cli prune                                     # manuell aufräumen
-~/.openclaw/workspace-brainrothustler/bin/cli hosting.cli download --url <link> --out clips/x.mp4   # Direktlink → Datei
+bin/channel <id> hosting.cli upload   --file memory/<channel>/videos/x.mp4
+bin/channel <id> hosting.cli upload   --file x.mp4 --no-prune
+bin/channel <id> hosting.cli upload   --file x.mp4 --key videos/eigener-name.mp4
+cat x.txt | bin/channel <id> hosting.cli upload --file - --filename x.txt
+bin/channel <id> hosting.cli download --url <link> --out memory/<channel>/clips/x.mp4
+bin/channel <id> hosting.cli usage
+bin/channel <id> hosting.cli prune    [--keep 3] [--quota-gb 5]
 ```
 
-Upload-Ausgabe-JSON: `url`, `host`, `bucket`, `key`, `filename`, `bytes`, `pruned`
-(`deleted` / `kept` / `bytes` / `quota_bytes`). Steht `prune_error` drin, war der
-Upload ok — nur das Aufräumen scheiterte.
-Usage-Ausgabe-JSON: `objects`, `bytes`, `quota_bytes`, `free_bytes`, `keys`.
-Download-Ausgabe-JSON: `path`, `bytes`, `filename`, `url`, `content_type`.
+| Befehl | Ausgabe (JSON) |
+| --- | --- |
+| `upload` | `url`, `host`, `bucket`, `key`, `filename`, `bytes`, `pruned` |
+| `download` | `path`, `bytes`, `filename`, `url`, `content_type` |
+| `usage` | `objects`, `bytes`, `quota_bytes`, `free_bytes`, `keys` |
+| `prune` | `deleted`, `kept`, `bytes`, `quota_bytes` |
 
-## Konfiguration (OpenClaw-Team-Store)
+Steht in `upload` ein `prune_error`, war der Upload erfolgreich - nur das
+Aufräumen ist gescheitert.
 
-Die Werte liegen im OpenClaw-Team-Store (Kind `env`) und werden automatisch als
-Umgebungsvariablen injiziert; `hosting` liest sie aus `os.environ`. Kein `.env`,
-kein Fallback-Loader.
+## Aufräumen
 
-Pflicht: `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`,
-`R2_PUBLIC_BASE_URL` (r2.dev-Subdomain oder eigene Domain).
-Optional: `R2_ENDPOINT`, `R2_PREFIX` (nur für Aufrufe **ohne** Kanal; Default
-`videos/`), `R2_KEEP` (Default 1), `R2_QUOTA_GB` (Default 10).
-Braucht `boto3` (`pip install -r modules/requirements.txt`). Fehler werfen
-`hosting.R2Error` (fehlende Config, boto3 fehlt, Bucket-Fehler).
+Nach jedem Upload wird innerhalb des Prefix aufgeräumt: standardmäßig bleibt
+**nur das neueste Objekt**. Der Link aus dem vorherigen Lauf ist danach tot -
+wer ihn noch braucht, muss den Upload mit `--no-prune` machen.
 
-## Python-API
+`prune` arbeitet ausschließlich im Prefix des Kanals, löscht also nie die Videos
+eines anderen Kanals. `--keep` und `--quota-gb` überschreiben die Defaults für
+einen Lauf; die dauerhaften Werte stehen in der Projekt-README.
 
-```python
-from hosting import upload_file, prune, usage, r2
+## Fehler
 
-url = upload_file("out.mp4")            # -> "https://pub-....r2.dev/videos/..."
-key = r2.object_key("clip.mp4")         # Key bauen (videos/YYYY-MM-DD/...)
-prune(protect={key})                    # aufräumen (nach dem Upload)
-usage()                                 # {"objects": ..., "bytes": ..., "free_bytes": ...}
-```
-
-`upload_file`/`upload_bytes`/`upload` geben den URL-String zurück und räumen
-**nicht** selbst auf — das macht `prune` (die CLI ruft es automatisch nach dem
-Upload). `r2.upload*` wirft `hosting.R2Error`. `download` wirft
-`hosting.DownloadError` (schlechte URL, HTTP-Fehler oder über `max_bytes`).
+`R2Error` bei fehlender Konfiguration, fehlendem `boto3` oder Bucket-Fehlern;
+`DownloadError` bei kaputter URL, HTTP-Fehler oder zu großer Datei. Ohne Kanal
+und ohne expliziten Prefix bricht `upload` ab, statt in einen gemeinsamen
+Prefix zu schreiben.

@@ -119,6 +119,11 @@ irrelevant - er ruft nur `bin/cli` / `bin/channel` auf.
 | `BRAINROT_DB` | Pfad der SQLite-DB | `memory/brainrot.db` |
 | `BRAINROT_STATE_DIR` | Verzeichnis für Cookies/Token | `~/.openclaw/state/brainrot` |
 | `YTDLP_COOKIES_FILE` | Netscape-`cookies.txt` für yt-dlp | `$BRAINROT_STATE_DIR/cookies.txt` |
+| `YTDLP_COOKIES_FROM_BROWSER` | Cookies aus einem Browserprofil (`firefox:default`) | - |
+| `YTDLP_PROXY` | Ausgang für gesperrte IPs (`socks5://…`) | - |
+| `YTDLP_EXTRACTOR_ARGS` | yt-dlp `--extractor-args`, z. B. `youtube:player_client=web_safari` | - |
+| `YTDLP_JS_RUNTIMES` | Override für die JS-Challenge-Runtime (Node wird automatisch erkannt) | - |
+| `TESSERACT_CMD` | Tesseract-Binary für OCR | `tesseract` im PATH |
 | `R2_*` | Zugänge, Bucket, Public-URL (siehe oben) | - |
 | `R2_KEEP` / `R2_QUOTA_GB` | Aufbewahrung je Prefix | `1` / `10 GB` |
 | `EDITOR_FFMPEG` / `EDITOR_FFPROBE` | eigenes Binary statt `imageio-ffmpeg` | - |
