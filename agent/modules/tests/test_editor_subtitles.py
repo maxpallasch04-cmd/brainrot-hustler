@@ -11,6 +11,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from PIL import Image  # noqa: E402
+
 from editor import subtitles as subs  # noqa: E402
 from editor.probe import ffmpeg_exe, probe  # noqa: E402
 
@@ -165,7 +167,7 @@ class BurnTest(unittest.TestCase):
         tmp = Path(tempfile.mkdtemp())
         video = tmp / "clip.mp4"
         subprocess.run([ffmpeg_exe(), "-y", "-loglevel", "error",
-                        "-f", "lavfi", "-i", "color=c=0x1e1e1e:s=160x90:d=1:r=10",
+                        "-f", "lavfi", "-i", "color=c=0x1e1e1e:s=320x180:d=1:r=10",
                         "-c:v", "libx264", "-pix_fmt", "yuv420p", str(video)],
                        check=True)
 
@@ -173,11 +175,19 @@ class BurnTest(unittest.TestCase):
         subs.write_srt([{"start": 0.1, "end": 0.9, "text": "what a line!"}], srt)
 
         out = tmp / "out.mp4"
-        got = subs.burn(video, srt, out, force_style=subs.build_style(font_size=24, outline=2))
+        got = subs.burn(video, srt, out, force_style=subs.build_style(font_size=40, outline=2))
         self.assertTrue(Path(got).exists())
         info = probe(str(out))
-        self.assertEqual(tuple(info["size"]), (160, 90))
+        self.assertEqual(tuple(info["size"]), (320, 180))
         self.assertAlmostEqual(info["duration"], 1.0, places=1)
+
+        # Wirklich Text im Bild? Ohne libass/Fonts wäre der Burn still wirkungslos.
+        frame = tmp / "check.png"
+        subprocess.run([ffmpeg_exe(), "-y", "-loglevel", "error", "-ss", "0.5",
+                        "-i", str(out), "-frames:v", "1", str(frame)], check=True)
+        bright = sum(1 for px in Image.open(frame).convert("RGB").getdata()
+                     if min(px) > 180)
+        self.assertGreater(bright, 20, "kein Text im gebrannten Frame")
 
 
 if __name__ == "__main__":
