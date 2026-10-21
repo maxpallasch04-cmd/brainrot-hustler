@@ -20,6 +20,33 @@ import brainrot_paths as paths
 #: Default download target: ``memory/<channel>/clips`` (see brainrot_paths).
 DEFAULT_OUT_DIR = None
 
+#: Zielhöhe in Pixeln. 1080 ist der Kompromiss: die 9:16-Action-Box wird danach
+#: nur ~1,8x hochskaliert, OCR hat genug Pixel, und der Decode bleibt bezahlbar.
+#: Abweichen nur in Ausnahmen (sehr kleine Score-Einblendungen -> 1440).
+DEFAULT_QUALITY = 1080
+
+
+def format_selector(quality: int | None = DEFAULT_QUALITY) -> str:
+    """yt-dlp-Format: bestes Video+Audio bis `quality` Höhe, danach gemerged.
+
+    ``None``/``0`` fällt auf das alte Verhalten zurück (beste *fertige* MP4) -
+    das ist auf YouTube oft nur 360p oder 720p.
+    """
+    if not quality:
+        return "mp4/best"
+    q = int(quality)
+    return f"bv*[height<={q}]+ba/b[height<={q}]/b"
+
+
+def _ffmpeg_location() -> str | None:
+    """Verzeichnis des ffmpeg-Binaries für den Merge (imageio-ffmpeg reicht)."""
+    try:
+        from editor.probe import ffmpeg_exe
+
+        return str(Path(ffmpeg_exe()).parent)
+    except Exception:
+        return None
+
 
 def default_cookies_file() -> Path:
     """Default cookie location: ``$BRAINROT_STATE_DIR/cookies.txt``."""
@@ -140,11 +167,13 @@ def youtube_id(url: str) -> str | None:
 
 
 def download(url: str, out_dir=DEFAULT_OUT_DIR, *, overwrite=False, quiet=True,
-             subs_lang: str | None = None) -> dict:
+             subs_lang: str | None = None, quality: int | None = DEFAULT_QUALITY) -> dict:
     """Download one video (+ optional subtitles); returns the file facts.
 
     ``subs_lang`` (e.g. ``"en"``) also fetches the transcript (auto-captions,
-    VTT) and returns its path as ``subs``.
+    VTT) and returns its path as ``subs``. ``quality`` ist die maximale Höhe in
+    Pixeln (Default 1080); Video und Audio werden dafür getrennt geladen und
+    mit ffmpeg zu einer MP4 gemerged.
     """
     out_dir = out_dir or paths.channel_dir("clips")
     try:
@@ -156,13 +185,17 @@ def download(url: str, out_dir=DEFAULT_OUT_DIR, *, overwrite=False, quiet=True,
     out.mkdir(parents=True, exist_ok=True)
     opts = {
         "outtmpl": str(out / "%(id)s.%(ext)s"),
-        "format": "mp4/best",
+        "format": format_selector(quality),
+        "merge_output_format": "mp4",
         "quiet": quiet,
         "no_warnings": quiet,
         "noprogress": True,
         "overwrites": bool(overwrite),
         "noplaylist": True,
     }
+    ffmpeg = _ffmpeg_location()
+    if ffmpeg:
+        opts["ffmpeg_location"] = ffmpeg
     opts.update(cookie_opts())
     opts.update(net_opts())
     if subs_lang:

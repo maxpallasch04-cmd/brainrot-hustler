@@ -148,6 +148,9 @@ def main(argv: list[str] | None = None) -> int:
     d.add_argument("--url", required=True)
     d.add_argument("--out-dir", default=dl.DEFAULT_OUT_DIR,
                    help="Zielordner (default: memory/<channel>/clips)")
+    d.add_argument("--quality", type=int, default=dl.DEFAULT_QUALITY,
+                   choices=[360, 720, 1080, 1440, 2160],
+                   help="max. Höhe in Pixeln (Default 1080)")
     d.add_argument("--recipe", required=True, help="recipe name that picked this video")
     d.add_argument("--subs-lang", default=None, help="also fetch the transcript (e.g. 'en')")
     d.add_argument("--overwrite", action="store_true")
@@ -245,7 +248,7 @@ def main(argv: list[str] | None = None) -> int:
             _dump(store.next_work(args.recipe))
         elif args.cmd == "download":
             got = dl.download(args.url, args.out_dir, overwrite=args.overwrite,
-                              subs_lang=args.subs_lang)
+                              subs_lang=args.subs_lang, quality=args.quality)
             source_id = store.add_source(args.url, ext_id=got.get("id"), path=got["path"],
                                          title=got.get("title", ""),
                                          duration_s=got.get("duration_s"),

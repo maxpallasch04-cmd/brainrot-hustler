@@ -488,5 +488,17 @@ class NetOptsTest(unittest.TestCase):
             yt_dlp.YoutubeDL({"quiet": True, **dlmod.net_opts()}).close()
 
 
+class DownloadFormatTest(unittest.TestCase):
+    def test_default_quality_is_1080(self):
+        self.assertEqual(dlmod.DEFAULT_QUALITY, 1080)
+        self.assertIn("height<=1080", dlmod.format_selector())
+
+    def test_format_selector(self):
+        self.assertEqual(dlmod.format_selector(720),
+                         "bv*[height<=720]+ba/b[height<=720]/b")
+        self.assertEqual(dlmod.format_selector(None), "mp4/best")
+        self.assertEqual(dlmod.format_selector(0), "mp4/best")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
