@@ -97,7 +97,7 @@ YT-Spezifische steht hier — die Pipeline ist generisch.
    Form: `[{"start":..,"end":..,"reason":".."}]` oder
    `[{"score":..,"pre_roll":..,"post_roll":..,"reason":".."}]`.
 
-### `clip` - Kandidat schneiden (Render macht `editor`)
+### `clip` - Kandidat schneiden
 
    `yt_clips` **rendert nicht**. Es liefert Fenster und Boxen; das Video schreibt
    ausschließlich `editor` aus einer Spec. Deshalb stehen die Aufrufe unten

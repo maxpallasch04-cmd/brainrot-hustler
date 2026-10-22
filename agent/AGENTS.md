@@ -99,7 +99,7 @@ Module sind nur über einen der beiden Wrapper nutzbar.
   Kanalprofile: `planned` → `generated` → `uploaded`.
   → `modules/longterm_memory/README.md`
 
-### Konventionen
+## Konventionen
 
 - Jedes CLI gibt **JSON** aus - parsen.
 - **Rezept** = inhaltliche Vorgabe (`recipes/<name>.md`).
