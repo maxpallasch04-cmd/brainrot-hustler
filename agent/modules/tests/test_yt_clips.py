@@ -498,6 +498,15 @@ class DownloadFormatTest(unittest.TestCase):
         self.assertEqual(dlmod.DEFAULT_QUALITY, 1080)
         self.assertIn("height<=1080", dlmod.format_selector())
 
+    def test_progressive_selector(self):
+        self.assertEqual(dlmod.progressive_selector(1080), "b[height<=1080]/b")
+
+    def test_gated_detection(self):
+        self.assertTrue(dlmod._is_gated(Exception("HTTP Error 403: Forbidden")))
+        self.assertTrue(dlmod._is_gated(
+            Exception("Requested format is not available")))
+        self.assertFalse(dlmod._is_gated(Exception("Sign in to confirm")))
+
     def test_format_selector(self):
         self.assertEqual(dlmod.format_selector(720),
                          "bv*[height<=720]+ba/b[height<=720]/b")

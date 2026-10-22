@@ -51,7 +51,9 @@ Alle Befehle geben JSON aus. Der Prozess (welche Analyse wann) steht in
 `skills/ytclip`.
 
 **Qualität:** `download` lädt standardmäßig **1080p** - Video und Audio getrennt,
-per ffmpeg zu einer MP4 gemerged. Das selten ändern: 720 reicht nicht (die
+per ffmpeg zu einer MP4 gemerged. Scheitert der DASH-Download mit **403**
+(fehlender PO-Token), wird einmal auf eine fertige Datei zurückgefallen; das
+JSON trägt dann `quality_fallback: true`. Das selten ändern: 720 reicht nicht (die
 9:16-Action-Box wird sonst ~2,7× hochskaliert), 1440 lohnt nur, wenn Score oder
 Name sehr klein im Bild sind. Ohne Merge wäre die beste *fertige* MP4 auf
 YouTube oft nur 360p.

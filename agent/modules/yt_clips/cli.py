@@ -149,8 +149,8 @@ def main(argv: list[str] | None = None) -> int:
     d.add_argument("--out-dir", default=dl.DEFAULT_OUT_DIR,
                    help="Zielordner (default: memory/<channel>/clips)")
     d.add_argument("--quality", type=int, default=dl.DEFAULT_QUALITY,
-                   choices=[360, 720, 1080, 1440, 2160],
-                   help="max. Höhe in Pixeln (Default 1080)")
+                   choices=[0, 360, 720, 1080, 1440, 2160],
+                   help="max. Höhe in Pixeln (Default 1080); 0 = beste fertige Datei (alt)")
     d.add_argument("--recipe", required=True, help="recipe name that picked this video")
     d.add_argument("--subs-lang", default=None, help="also fetch the transcript (e.g. 'en')")
     d.add_argument("--overwrite", action="store_true")

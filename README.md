@@ -149,8 +149,10 @@ Voraussetzungen: `node >= 22` (`node --version`!), `npm >= 9`,
 RCE (GHSA-qpv9-8xfj-xx9m); seit 2.0.0 bindet er nur noch auf localhost.
 
 ```bash
-# 1) Plugin in DIE venv, die der Wrapper benutzt
+# 1) Plugin in DIE venv, die der Wrapper benutzt (steht in requirements.txt)
 ~/.openclaw/workspace-brainrothustler/.venv/bin/pip install -U bgutil-ytdlp-pot-provider
+#    Nur nötig, wenn die venv älter ist als requirements.txt. Das Plugin allein
+#    reicht nicht - ohne laufenden Server auf 127.0.0.1:4416 gibt es keinen Token.
 
 # 2) Provider bauen (Version = Plugin-Version)
 # Einzeilig halten — ein '\'-Umbruch wird beim Einfügen zu einem Leerzeichen
@@ -241,7 +243,7 @@ Fremdpakete (alles andere ist stdlib):
 | Modul | Braucht |
 |---|---|
 | `hosting` | `boto3`, `requests` |
-| `yt_clips` | `yt-dlp`, `numpy`, `Pillow`; `tesseract-ocr` (System) |
+| `yt_clips` | `yt-dlp`, `bgutil-ytdlp-pot-provider`, `numpy`, `Pillow`; `tesseract-ocr` (System) |
 | `editor` | `ffmpeg` (System) |
 | `longterm_memory` | - (nur stdlib) |
 

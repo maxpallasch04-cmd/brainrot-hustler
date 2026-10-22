@@ -38,6 +38,19 @@ def format_selector(quality: int | None = DEFAULT_QUALITY) -> str:
     return f"bv*[height<={q}]+ba/b[height<={q}]/b"
 
 
+def progressive_selector(quality: int | None = DEFAULT_QUALITY) -> str:
+    """Beste **fertige** Datei (Video+Ton) bis `quality` - braucht keinen PO-Token."""
+    q = int(quality or DEFAULT_QUALITY)
+    return f"b[height<={q}]/b"
+
+
+def _is_gated(exc: Exception) -> bool:
+    """403 oder "kein Format": beides heißt, der Client liefert nichts Brauchbares."""
+    text = str(exc).lower()
+    return ("403" in text or "forbidden" in text
+            or "requested format is not available" in text)
+
+
 def _ffmpeg_location() -> str | None:
     """Verzeichnis des ffmpeg-Binaries für den Merge (imageio-ffmpeg reicht)."""
     try:
@@ -206,18 +219,37 @@ def download(url: str, out_dir=DEFAULT_OUT_DIR, *, overwrite=False, quiet=True,
             "subtitlesformat": "vtt",
         })
 
-    subs_path = None
-    with yt_dlp.YoutubeDL(opts) as ydl:
-        try:
+    def _fetch(options: dict):
+        with yt_dlp.YoutubeDL(options) as ydl:
             info = ydl.extract_info(url, download=True)
-        except Exception as exc:
+            requested = (info.get("requested_downloads") or [{}])[0]
+            path = requested.get("filepath") or ydl.prepare_filename(info)
+            subs_path = None
+            for meta in (info.get("requested_subtitles") or {}).values():
+                if meta.get("filepath"):
+                    subs_path = str(meta["filepath"])
+                    break
+        return info, path, subs_path
+
+    used_format = opts["format"]
+    fallback = False
+    try:
+        info, path, subs_path = _fetch(opts)
+    except Exception as exc:
+        # 403 trotz PO-Token: DASH-Streams sind gated, progressive nicht.
+        if not quality or not _is_gated(exc):
             raise _with_hint(exc) from exc
-        requested = (info.get("requested_downloads") or [{}])[0]
-        path = requested.get("filepath") or ydl.prepare_filename(info)
-        for meta in (info.get("requested_subtitles") or {}).values():
-            if meta.get("filepath"):
-                subs_path = str(meta["filepath"])
-                break
-    return {"path": str(path), "id": info.get("id") or youtube_id(url),
-            "title": info.get("title") or "", "duration_s": info.get("duration"),
-            "chapters": info.get("chapters") or [], "subs": subs_path}
+        retry = dict(opts)
+        retry["format"] = progressive_selector(quality)
+        retry["overwrites"] = True
+        info, path, subs_path = _fetch(retry)
+        used_format = retry["format"]
+        fallback = True
+
+    out = {"path": str(path), "id": info.get("id") or youtube_id(url),
+           "title": info.get("title") or "", "duration_s": info.get("duration"),
+           "chapters": info.get("chapters") or [], "subs": subs_path,
+           "format": used_format}
+    if fallback:
+        out["quality_fallback"] = True
+    return out
