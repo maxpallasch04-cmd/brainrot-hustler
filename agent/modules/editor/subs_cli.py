@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 
 from . import subtitles as subs
 
@@ -17,6 +18,21 @@ def add_parser(sub):
 
     i = s.add_parser("info", help="cue count + duration of a subtitle file")
     i.add_argument("--in", dest="src", required=True)
+
+    t = s.add_parser("transcribe", help="lokales Transkript erzeugen (faster-whisper)")
+    t.add_argument("--in", dest="src", required=True, help="Video/Audio")
+    t.add_argument("--out", required=True,
+                   help="Ziel: .vtt (Wortzeiten, Default) oder .srt")
+    t.add_argument("--model", default=None,
+                   help="Whisper-Modell (Default: $WHISPER_MODEL oder 'base')")
+    t.add_argument("--lang", default=None, help="Sprache, z. B. en (Default: auto)")
+    t.add_argument("--device", default="cpu")
+    t.add_argument("--compute-type", default="int8",
+                   help="int8 (CPU, Default), int8_float16, float16 …")
+    t.add_argument("--threads", type=int, default=0,
+                   help="CPU-Threads (0 = alle)")
+    t.add_argument("--beam-size", type=int, default=5)
+    t.add_argument("--no-vad", action="store_true", help="VAD-Filter aus")
 
     c = s.add_parser("cut", help="cut a clip-relative window out of a transcript")
     c.add_argument("--in", dest="src", required=True, help=".vtt or .srt")
@@ -72,6 +88,13 @@ def run(args) -> int:
         cues = subs.load(args.src)
         last = max((c["end"] for c in cues), default=0.0)
         _dump({"path": args.src, "cues": len(cues), "last_end": round(last, 3)})
+    elif args.subcmd == "transcribe":
+        _dump(subs.transcribe(
+            args.src, args.out,
+            model=args.model or os.environ.get("WHISPER_MODEL") or "base",
+            lang=args.lang, device=args.device,
+            compute_type=args.compute_type, threads=args.threads,
+            beam_size=args.beam_size, vad=not args.no_vad))
     elif args.subcmd == "cut":
         cues = subs.load(args.src)
         if not args.no_clean:

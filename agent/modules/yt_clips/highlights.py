@@ -2,8 +2,8 @@
 
 Two local signals, no API calls:
 
-1. **Chapters** — many sports videos ship chapter markers (yt-dlp gives them at
-   download time). Free, already labelled.
+1. **Chapters** — many sports videos ship chapter markers (the source metadata
+   carries them when the uploader added chapters). Free, already labelled.
 2. **Audio peaks** — crowd roar / commentator excitement shows up as loudness
    spikes. The envelope is computed locally with ffmpeg + NumPy.
 

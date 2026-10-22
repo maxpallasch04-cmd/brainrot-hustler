@@ -13,8 +13,8 @@ titles/descriptions.
 
 from __future__ import annotations
 
+import os
 import re
-import shutil
 import subprocess
 import tempfile
 from pathlib import Path
@@ -297,11 +297,99 @@ def to_srt(cues) -> str:
     return "\n".join(blocks)
 
 
+def _fmt_vtt_ts(seconds: float) -> str:
+    seconds = max(0.0, float(seconds))
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    return f"{hours:02d}:{minutes:02d}:{seconds % 60:06.3f}"
+
+
+def to_vtt(cues) -> str:
+    """Render cues as WebVTT — inline ``<ts>`` tags keep word timings."""
+    blocks = ["WEBVTT", ""]
+    for cue in cues:
+        blocks.append(f"{_fmt_vtt_ts(cue['start'])} --> {_fmt_vtt_ts(cue['end'])}")
+        blocks.append(cue.get("raw") or cue["text"])
+        blocks.append("")
+    return "\n".join(blocks)
+
+
+def write_cues(cues, path) -> str:
+    """Write cues; ``.vtt`` gets WebVTT (word tags), everything else SRT."""
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    text = to_vtt(cues) if target.suffix.lower() == ".vtt" else to_srt(cues)
+    target.write_text(text, encoding="utf-8")
+    return str(target)
+
+
 def write_srt(cues, path) -> str:
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(to_srt(cues), encoding="utf-8")
     return str(target)
+
+
+# ---- transcription (local, faster-whisper) ------------------------------
+
+def transcribe(video, out, *, model="base", lang=None, device="cpu",
+               compute_type="int8", threads=0, vad=True, beam_size=5) -> dict:
+    """Transcribe a video/audio file locally and write ``out`` (.vtt/.srt).
+
+    Word timestamps go into the cue text as VTT ``<HH:MM:SS.mmm>`` tags, so the
+    existing ``words()``/``snap()`` machinery works exactly like with YouTube
+    auto-captions. ``burn`` strips the tags and rebuilds clean SRT, so the same
+    file works for rendering.
+
+    Needs ``faster-whisper``; the model is fetched once into the Hugging Face
+    cache (``WHISPER_MODEL_DIR`` moves it, e.g. outside the repo).
+    """
+    try:
+        from faster_whisper import WhisperModel
+    except ImportError as exc:  # pragma: no cover - depends on host
+        raise SubtitleError(
+            "faster-whisper is not installed (pip install faster-whisper)") from exc
+
+    src = Path(video)
+    if not src.is_file():
+        raise SubtitleError(f"not a file: {src}")
+
+    kwargs: dict = {"device": device, "compute_type": compute_type}
+    if threads:
+        kwargs["cpu_threads"] = int(threads)
+    root = os.environ.get("WHISPER_MODEL_DIR", "").strip()
+    if root:
+        kwargs["download_root"] = root
+
+    engine = WhisperModel(model, **kwargs)
+    segments, info = engine.transcribe(str(src), language=lang or None,
+                                       beam_size=int(beam_size),
+                                       vad_filter=bool(vad),
+                                       word_timestamps=True)
+    cues: list[dict] = []
+    words_count = 0
+    for seg in segments:
+        text = WS_RE.sub(" ", TAG_RE.sub("", seg.text or "")).strip()
+        if not text:
+            continue
+        spoken = [w for w in (getattr(seg, "words", None) or [])
+                  if (w.word or "").strip()]
+        raw = None
+        if spoken:
+            words_count += len(spoken)
+            raw = " ".join(f"<{_fmt_vtt_ts(w.start)}>{(w.word or '').strip()}"
+                           for w in spoken)
+        cues.append({"start": float(seg.start), "end": float(seg.end),
+                     "text": text, "raw": raw})
+    if not cues:
+        raise SubtitleError(f"transcript is empty (no speech detected): {src}")
+
+    path = write_cues(cues, out)
+    return {"out": path, "cues": len(cues), "words": words_count,
+            "model": model, "language": getattr(info, "language", None),
+            "language_probability": round(
+                float(getattr(info, "language_probability", 0.0) or 0.0), 3),
+            "duration_s": round(float(getattr(info, "duration", 0.0) or 0.0), 3)}
 
 
 # ---- styling / burning --------------------------------------------------
@@ -348,7 +436,9 @@ def burn(video, subs, out, *, force_style: str | None = None, ffmpeg=None,
     exe = ffmpeg or ffmpeg_exe()
 
     with tempfile.TemporaryDirectory() as tmp:
-        shutil.copyfile(subs_path, Path(tmp) / "subs.srt")
+        if not load(subs_path):
+            raise SubtitleError(f"no cues in {subs_path}")
+        write_srt(load(subs_path), Path(tmp) / "subs.srt")
         vf = "subtitles=subs.srt"
         if force_style:
             vf += f":force_style='{force_style}'"

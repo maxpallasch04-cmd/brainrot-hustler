@@ -24,3 +24,5 @@ temp/
 agent/assets/music/*.mp3
 agent/assets/music/*.wav
 agent/assets/music/*.m4a
+
+fetch-upload.py

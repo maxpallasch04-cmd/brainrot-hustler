@@ -1,7 +1,9 @@
 """exec-friendly CLI over the YT-clip art. JSON output.
 
     python3 -m yt_clips.cli next
-    python3 -m yt_clips.cli download --url <url> --out-dir clips --recipe <name> [--subs-lang en]
+    python3 -m yt_clips.cli request --url <url> --recipe <name>
+    python3 -m yt_clips.cli fetch --source <id> --url <bucket-url> [--no-transcribe]
+    python3 -m yt_clips.cli transcribe --source <id> [--model base] [--lang en]
     python3 -m yt_clips.cli highlights --source 3 --top 10 --add
     python3 -m yt_clips.cli crop-frame --in frames/<bild>.png --box <box> --out sb.png --scale 2
     python3 -m yt_clips.cli candidates-add --source 3 --json cands.json
@@ -26,16 +28,19 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
+from urllib.parse import unquote, urlparse
 
 import brainrot_paths as paths
+from hosting import DownloadError, download as http_download
 
 from . import crops
-from . import download as dl
 from . import highlights as hl_k
 from . import motion
 from . import ocr
+from . import urls
 from .store import Store
 
 
@@ -64,6 +69,31 @@ def _parse_box(value) -> tuple[int, int, int, int]:
 
 
 MIN_PRE_ROLL = 8.0
+
+#: Was der Operator hochladen darf. Alles andere wird trotzdem genommen, aber
+#: als MP4 benannt - der Editor probiert ffmpeg und scheitert sonst erst später.
+VIDEO_SUFFIXES = (".mp4", ".mkv", ".webm", ".mov", ".m4v")
+
+REQUEST_MESSAGE = (
+    "Bitte herunterladen ({quality}p, mp4) und in den Bucket legen, dann den "
+    "Link zurückschicken:\n{url}\n"
+    "Transkript erzeuge ich selbst - keine Untertitel nötig."
+)
+
+
+def _video_suffix(url: str) -> str:
+    """Dateiendung aus der URL, sonst ``.mp4``."""
+    suffix = Path(unquote(urlparse(str(url)).path)).suffix.lower()
+    return suffix if suffix in VIDEO_SUFFIXES else ".mp4"
+
+
+def _run_transcribe(path, out, *, model=None, lang=None, threads=0) -> dict:
+    """Lokales Transkript über ``editor.subtitles`` (faster-whisper)."""
+    from editor import subtitles as subs_mod
+
+    return subs_mod.transcribe(
+        path, out, model=model or os.environ.get("WHISPER_MODEL") or "base",
+        lang=lang, threads=threads)
 
 
 def _candidate_windows(items) -> tuple[list[dict], list[str]]:
@@ -140,20 +170,36 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--db", default=None, help="DB path (default: memory/brainrot.db)")
     sub = p.add_subparsers(dest="cmd", required=True)
 
-    n = sub.add_parser("next", help="what to do next for one recipe: clip | find | download")
+    n = sub.add_parser("next", help="what to do next for one recipe: clip | find | await_upload | request_upload")
     n.add_argument("--recipe", required=True,
                    help="recipe name — the queue key (sources of other recipes are ignored)")
 
-    d = sub.add_parser("download", help="download a video via yt-dlp")
-    d.add_argument("--url", required=True)
-    d.add_argument("--out-dir", default=dl.DEFAULT_OUT_DIR,
-                   help="Zielordner (default: memory/<channel>/clips)")
-    d.add_argument("--quality", type=int, default=dl.DEFAULT_QUALITY,
-                   choices=[0, 360, 720, 1080, 1440, 2160],
-                   help="max. Höhe in Pixeln (Default 1080); 0 = beste fertige Datei (alt)")
-    d.add_argument("--recipe", required=True, help="recipe name that picked this video")
-    d.add_argument("--subs-lang", default=None, help="also fetch the transcript (e.g. 'en')")
-    d.add_argument("--overwrite", action="store_true")
+    rq = sub.add_parser("request", help="Video beim Operator anfordern (er lädt + hostet)")
+    rq.add_argument("--url", required=True)
+    rq.add_argument("--recipe", required=True, help="recipe name that picked this video")
+    rq.add_argument("--note", default=None, help="optionaler Zusatz für die Nachricht")
+
+    fe = sub.add_parser("fetch", help="gelieferte Datei aus dem Bucket lokal ablegen")
+    fe.add_argument("--source", type=int, required=True)
+    fe.add_argument("--url", required=True, help="direkter http(s)-Link zur Datei")
+    fe.add_argument("--out-dir", default=None,
+                    help="Zielordner (default: memory/<channel>/clips)")
+    fe.add_argument("--title", default=None, help="Titel überschreiben")
+    fe.add_argument("--overwrite", action="store_true")
+    fe.add_argument("--no-transcribe", action="store_true",
+                    help="kein lokales Transkript erzeugen")
+    fe.add_argument("--model", default=None,
+                    help="Whisper-Modell (Default: $WHISPER_MODEL oder 'base')")
+    fe.add_argument("--lang", default=None, help="Sprache, z. B. en (Default: auto)")
+    fe.add_argument("--threads", type=int, default=0, help="Whisper-CPU-Threads")
+
+    tr = sub.add_parser("transcribe", help="Transkript für eine geladene Quelle erzeugen")
+    tr.add_argument("--source", type=int, required=True)
+    tr.add_argument("--out", default=None, help="Ziel (.vtt); Default: neben dem Video")
+    tr.add_argument("--model", default=None,
+                    help="Whisper-Modell (Default: $WHISPER_MODEL oder 'base')")
+    tr.add_argument("--lang", default=None, help="Sprache, z. B. en (Default: auto)")
+    tr.add_argument("--threads", type=int, default=0)
 
     ca = sub.add_parser("candidates-add", help="add candidate clip windows")
     ca.add_argument("--source", type=int, required=True)
@@ -246,16 +292,72 @@ def main(argv: list[str] | None = None) -> int:
     with Store(args.db, channel=channel) as store:
         if args.cmd == "next":
             _dump(store.next_work(args.recipe))
-        elif args.cmd == "download":
-            got = dl.download(args.url, args.out_dir, overwrite=args.overwrite,
-                              subs_lang=args.subs_lang, quality=args.quality)
-            source_id = store.add_source(args.url, ext_id=got.get("id"), path=got["path"],
-                                         title=got.get("title", ""),
-                                         duration_s=got.get("duration_s"),
-                                         recipe=args.recipe,
-                                         chapters=got.get("chapters"),
-                                         subs_path=got.get("subs"))
-            _dump({"source_id": source_id, **got})
+        elif args.cmd == "request":
+            vid = urls.youtube_id(args.url)
+            source_id = store.add_source(
+                args.url, ext_id=vid, recipe=args.recipe,
+                status="AwaitingUpload")
+            _dump({
+                "action": "request_upload",
+                "source_id": source_id,
+                "video_id": vid,
+                "url": args.url,
+                "operator_message": REQUEST_MESSAGE.format(
+                    quality=1080, url=args.url),
+                "note": args.note,
+                "next": (f"yt_clips.cli fetch --source {source_id} "
+                         "--url <bucket-url>"),
+            })
+        elif args.cmd == "fetch":
+            source = store.get_source(args.source)
+            if source is None:
+                p.error(f"source {args.source} not found")
+            out_dir = Path(args.out_dir or paths.channel_dir("clips"))
+            out_dir.mkdir(parents=True, exist_ok=True)
+            stem = source.get("ext_id") or f"source{args.source}"
+            dest = out_dir / f"{stem}{_video_suffix(args.url)}"
+            try:
+                if dest.exists() and not args.overwrite:
+                    got = {"path": str(dest), "filename": dest.name,
+                           "bytes": dest.stat().st_size, "url": args.url,
+                           "cached": True}
+                else:
+                    got = http_download(args.url, dest=str(dest),
+                                        max_bytes=None)
+            except DownloadError as exc:
+                p.error(str(exc))
+            subs, transcript, transcript_error = None, None, None
+            if not args.no_transcribe:
+                try:
+                    transcript = _run_transcribe(
+                        got["path"], str(dest.with_suffix(".vtt")),
+                        model=args.model, lang=args.lang, threads=args.threads)
+                    subs = transcript["out"]
+                except Exception as exc:  # Datei ist da; Transkript nachholbar
+                    transcript_error = str(exc)
+            updated = store.set_source_file(args.source, path=got["path"],
+                                            subs_path=subs, title=args.title)
+            out = {"source_id": args.source, "file": got, "subs": subs,
+                   "status": updated["status"], "source": updated}
+            if transcript:
+                out["transcript"] = transcript
+            if transcript_error:
+                out["transcript_error"] = transcript_error
+                out["hint"] = "Video liegt lokal — `transcribe --source <id>` nachholen"
+            _dump(out)
+        elif args.cmd == "transcribe":
+            source = store.get_source(args.source)
+            if source is None:
+                p.error(f"source {args.source} not found")
+            if not source.get("path"):
+                p.error(f"source {args.source} has no local file — fetch it first")
+            out = args.out or str(Path(source["path"]).with_suffix(".vtt"))
+            got = _run_transcribe(source["path"], out, model=args.model,
+                                  lang=args.lang, threads=args.threads)
+            updated = store.set_source_file(args.source, path=source["path"],
+                                            subs_path=got["out"])
+            _dump({"source_id": args.source, "transcript": got,
+                   "subs_path": updated.get("subs_path")})
         elif args.cmd == "crop-frame":
             try:
                 box = _parse_box(args.box)

@@ -117,111 +117,37 @@ irrelevant - er ruft nur `bin/cli` / `bin/channel` auf.
 | --- | --- | --- |
 | `BRAINROT_CHANNEL` | aktiver Kanal; setzt `bin/channel` | - |
 | `BRAINROT_DB` | Pfad der SQLite-DB | `memory/brainrot.db` |
-| `BRAINROT_STATE_DIR` | Verzeichnis für Cookies/Token | `~/.openclaw/state/brainrot` |
-| `YTDLP_COOKIES_FILE` | Netscape-`cookies.txt` für yt-dlp | `$BRAINROT_STATE_DIR/cookies.txt` |
-| `YTDLP_COOKIES_FROM_BROWSER` | Cookies aus einem Browserprofil (`firefox:default`) | - |
-| `YTDLP_PROXY` | Ausgang für gesperrte IPs (`socks5://…`) | - |
-| `YTDLP_EXTRACTOR_ARGS` | yt-dlp `--extractor-args`, z. B. `youtube:player_client=web_safari` | - |
-| `YTDLP_JS_RUNTIMES` | Override für die JS-Challenge-Runtime (Node wird automatisch erkannt) | - |
+| `WHISPER_MODEL` | Default-Modell fürs Transkript (`tiny` … `large-v3`) | `base` |
+| `WHISPER_MODEL_DIR` | Modell-Cache, z. B. außerhalb des Home | Hugging-Face-Cache |
 | `TESSERACT_CMD` | Tesseract-Binary für OCR | `tesseract` im PATH |
 | `R2_*` | Zugänge, Bucket, Public-URL (siehe oben) | - |
 | `R2_KEEP` / `R2_QUOTA_GB` | Aufbewahrung je Prefix | `1` / `10 GB` |
 | `EDITOR_FFMPEG` / `EDITOR_FFPROBE` | eigenes Binary statt `imageio-ffmpeg` | - |
 
-**YouTube-Cookies** (für `yt_clips`) sind ebenfalls ein Zugang: YouTube blockt
-Rechenzentrums-IPs („Sign in to confirm you're not a bot"). Eine Netscape-
-`cookies.txt` liegt auf dem Host **außerhalb** von Workspace/Repo — Default
-`~/.openclaw/state/brainrot/cookies.txt` (`BRAINROT_STATE_DIR` verschiebt das
-Verzeichnis), Pfad überschreibbar via `YTDLP_COOKIES_FILE`. yt-dlp schreibt sie
-beim Lauf zurück (beschreibbar halten). Ohne Cookies scheitert der YT-Download.
+### Video-Übergabe (kein Download auf dem Host)
 
-### YouTube: PO-Token-Provider (optional — nur bei IP-Sperre)
+YouTube blockt Rechenzentrums-IPs („Sign in to confirm you're not a bot"), deshalb
+lädt **der Operator** im Browser: `request` schickt den Link raus, er legt die
+Datei (1080p, mp4) in den R2-Bucket, `fetch` holt sie von dort. Keine Cookies,
+kein PO-Token-Provider, kein yt-dlp — der Host braucht dafür keine Zugänge.
 
-Cookies heilen den Bot-Check, **nicht** eine Sperre der IP/ASN. Dagegen hilft der
-PO-Token-Provider `bgutil-ytdlp-pot-provider`; die empfohlene Kombi ist Provider
-**+** Cookies. Er läuft auf der VPS **nativ mit Node — kein Docker nötig**: der
-langsame Weg ist der *Script*-Modus (neuer Node-Prozess pro Aufruf), der
-*Server*-Modus ist schnell und ebenfalls reines Node. Docker wäre nur eine zweite
-Zustellform desselben Servers.
+### Operator-Werkzeug: `fetch-upload.py`
 
-Voraussetzungen: `node >= 22` (`node --version`!), `npm >= 9`,
-`yt-dlp >= 2025.05.22`. Version **≥ 2.0.0** nehmen — davor hatte der Server eine
-RCE (GHSA-qpv9-8xfj-xx9m); seit 2.0.0 bindet er nur noch auf localhost.
+Im Projekt-Root, für dich — nicht für den Agenten. Lädt das Video in guter
+Qualität (1080p DASH + Audio, per ffmpeg gemerged) und legt es direkt in den
+Bucket; gibt die öffentliche URL als JSON aus.
 
 ```bash
-# 1) Plugin in DIE venv, die der Wrapper benutzt (steht in requirements.txt)
-~/.openclaw/workspace-brainrothustler/.venv/bin/pip install -U bgutil-ytdlp-pot-provider
-#    Nur nötig, wenn die venv älter ist als requirements.txt. Das Plugin allein
-#    reicht nicht - ohne laufenden Server auf 127.0.0.1:4416 gibt es keinen Token.
-
-# 2) Provider bauen (Version = Plugin-Version)
-# Einzeilig halten — ein '\'-Umbruch wird beim Einfügen zu einem Leerzeichen
-# vor der URL ("protocol ' https' is not supported").
-rm -rf ~/bgutil-ytdlp-pot-provider   # falls ein abgebrochener Clone-Rest liegt
-git clone --single-branch --branch 2.0.2 https://github.com/Brainicism/bgutil-ytdlp-pot-provider.git ~/bgutil-ytdlp-pot-provider
-cd ~/bgutil-ytdlp-pot-provider/server && npm ci && npx tsc
-ls -l ~/bgutil-ytdlp-pot-provider/server/build/main.js   # muss existieren — sonst ist der Build nicht durchgelaufen
+python fetch-upload.py "https://youtu.be/<id>" --channel sls
+python fetch-upload.py "<url>" --prefix brainrot/sls/ --quality 1440 --keep
+python fetch-upload.py "<url>" --cookies-from-browser chrome   # falls Bot-Check
 ```
 
-Dauerbetrieb als **systemd-User-Service**. Der `ExecStart`-Pfad wird aus
-`command -v node` gefüllt — Systemd findet ein nvm-Node sonst nicht:
-
-```bash
-mkdir -p ~/.config/systemd/user
-cat > ~/.config/systemd/user/bgutil.service <<EOF
-[Unit]
-Description=bgutil PO token provider
-
-[Service]
-ExecStart=$(command -v node) %h/bgutil-ytdlp-pot-provider/server/build/main.js
-WorkingDirectory=%h/bgutil-ytdlp-pot-provider/server
-Restart=always
-
-[Install]
-WantedBy=default.target
-EOF
-```
-
-```bash
-systemctl --user daemon-reload
-systemctl --user enable --now bgutil
-loginctl enable-linger "$USER"      # läuft auch ohne Login-Session
-```
-
-Läuft der Server auf `127.0.0.1:4416` (Default), braucht yt-dlp **keine**
-Konfiguration. Port-Check (jeder HTTP-Code — 200 *oder* 400 — heißt „läuft";
-nur eine Connection-Fehlermeldung heißt „aus"):
-
-```bash
-curl -sS -o /dev/null -w 'HTTP %{http_code}\n' http://127.0.0.1:4416/
-```
-
-Und der eigentliche Test:
-
-```bash
-python3 -m yt_dlp -v "<url>" 2>&1 | grep -E "PO Token Providers|Generating"
-# erwartet:  [pot] PO Token Providers: bgutil:http-2.0.2 (external)
-#            [pot:bgutil:http] Generating a gvs PO Token for web client ...
-```
-
-Kommt trotz Provider weiter der Bot-Check, Client wechseln (env, siehe `TOOLS.md`).
-Auf der VPS bewährt: **`web_safari`** — `mweb` und `tv` enden dort in
-`The page needs to be reloaded` bzw. SABR-only:
-
-`YTDLP_EXTRACTOR_ARGS="youtube:player_client=web_safari"`
-
-Zwei Dinge, die sonst still fehlen:
-
-- `yt-dlp` **mit** Extra installieren: `pip install -U "yt-dlp[default]"`. Das
-  Paket `yt-dlp-ejs` (Challenge-Solver) kommt sonst nicht mit →
-  `n challenge solving failed`, auch mit Node.
-- Node als Runtime aktivieren: `YTDLP_JS_RUNTIMES=node` (yt-dlp nutzt von sich
-  aus nur `deno`).
-
-> Den Server **nicht** auf `0.0.0.0` binden (`-H`/`-p` nicht verändern) — er ist
-> unauthentifiziert. Notnagel, falls `npm ci` an `canvas` scheitert: das
-> Docker-Image `brainicism/bgutil-ytdlp-pot-provider` mit
-> `-p 127.0.0.1:4416:4416` (oder Deno statt Node).
+- `--channel` nimmt den `r2_prefix` aus dem Kanalprofil; ohne Profil `--prefix`.
+- Ohne `--out-dir`/`--keep` liegt die Datei nur temporär und wird nach dem
+  Upload gelöscht. Der Upload **streamt** (kein RAM-Load bei großen Videos).
+- Braucht `yt-dlp[default]`, `ffmpeg` und `boto3`; `--env-file r2.env` lädt
+  fehlende `R2_*`-Variablen.
 
 ---
 
@@ -243,8 +169,8 @@ Fremdpakete (alles andere ist stdlib):
 | Modul | Braucht |
 |---|---|
 | `hosting` | `boto3`, `requests` |
-| `yt_clips` | `yt-dlp`, `bgutil-ytdlp-pot-provider`, `numpy`, `Pillow`; `tesseract-ocr` (System) |
-| `editor` | `ffmpeg` (System) |
+| `yt_clips` | `numpy`, `Pillow`; `tesseract-ocr` (System) |
+| `editor` | `ffmpeg` (System), `faster-whisper` (lokales Transkript) |
 | `longterm_memory` | - (nur stdlib) |
 
 VPS einrichten (genau einmal, aus dem Workspace-Root):
@@ -360,12 +286,12 @@ Heartbeat: stündlich 09:00–22:00 (`lightContext`, isolierte Session).
 - `agent/bin/cli`: Modul-Wrapper (venv aktivieren, `PYTHONPATH` auf `modules/`,
   `--channel` → `BRAINROT_CHANNEL`; startet `python3 -m` aus dem Workspace-Root).
   Muss im Deploy **ausführbar** sein (`chmod +x bin/cli`).
-- **YouTube-Cookies**: liegen außerhalb des Repos
-  (`~/.openclaw/state/brainrot/cookies.txt`) und sind **nicht** Teil des Deploys —
-  pro Host einmalig bereitstellen, sonst scheitert der YT-Download am Bot-Schutz.
-- **PO-Token-Provider** (`bgutil`, optional): nur nötig, wenn die VPS-IP selbst
-  geblockt ist — dann helfen Cookies nicht. Läuft nativ mit Node ≥ 22 als
-  systemd-User-Service, **kein Docker** (Anleitung in §3).
+- **Video-Übergabe**: der Agent lädt nicht selbst. `request` schickt den Link an
+  den Operator, er lädt (1080p mp4) und legt die Datei in den R2-Bucket;
+  `fetch` holt sie von dort. Keine Cookies, kein PO-Token-Provider, kein yt-dlp.
+- **Transkript**: entsteht lokal mit `faster-whisper` (`editor.cli subtitles
+  transcribe`, CPU `int8`) — der Operator liefert nur das Video. Das Modell lädt
+  einmalig in den Hugging-Face-Cache (`WHISPER_MODEL_DIR` verschiebt ihn).
 - `agent/BOOTSTRAP.md` ist noch im Repo → ein Deploy startet das Onboarding
   erneut; vor dem ersten Deploy löschen oder bewusst behalten.
 

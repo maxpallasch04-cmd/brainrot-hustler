@@ -28,9 +28,9 @@ YT-Spezifische steht hier — die Pipeline ist generisch.
    ```
    ~/.openclaw/workspace-brainrothustler/bin/channel <id> yt_clips.cli next --recipe <recipe>
    ```
-   Die `action` sagt, was zu tun ist: `clip` | `find` | `download`. Das Rezept
-   ist der Queue-Schlüssel — fremdes Material taucht hier nicht auf.
-   **Immer `next` fragen** — nie parallel dieselben Clips rendern.
+   Die `action` sagt, was zu tun ist: `clip` | `find` | `await_upload` |
+   `request_upload`. Das Rezept ist der Queue-Schlüssel — fremdes Material taucht
+   hier nicht auf. **Immer `next` fragen** — nie parallel dieselben Clips rendern.
 
 ### `format` — Rohvideo noch ohne Boxen
 
@@ -146,22 +146,39 @@ YT-Spezifische steht hier — die Pipeline ist generisch.
      einer Lücke zuerst die Spec korrigieren.
    - **Auswahl pro Clip:** nicht gewünschte Regionen einfach in der Spec weglassen.
 
-### `download` — neues Video
+### `request_upload` — neues Video (Übergabe an den Operator)
 
-   Kein offenes Video mehr → neues laden. Transcript gleich mitnehmen:
+   Kein offenes Video mehr → neues Video auswählen (Rezept: `## Auswahl`) und
+   **nur den Link** per `message` an den Operator geben. 
+
    ```
-   ~/.openclaw/workspace-brainrothustler/bin/channel <id> yt_clips.cli download --url <url> --out-dir memory/<channel>/clips --recipe <name> --subs-lang en
+   ~/.openclaw/workspace-brainrothustler/bin/channel <id> yt_clips.cli request --url <url> --recipe <name>
    ```
-   Der Transcript-Pfad landet in `subs_path` (sichtbar in `next`/`list`).
-   Danach wieder bei `find`.
+
+   Die Ausgabe enthält `source_id`.
+
+### `await_upload` — auf den Link warten
+
+      Der Operator sendet einen link zu dem Video, du lädst es runter.
+   ```
+   ~/.openclaw/workspace-brainrothustler/bin/channel <id> yt_clips.cli fetch --source <id> --url <bucket-url>
+   ```
+
+   `fetch` legt die Datei als `memory/<channel>/clips/<video-id>.<ext>` ab,
+   und erzeugt das Transkript,
+   setzt danach die Quelle auf `Downloaded`.
+
+   - **`transcript_error` in der Ausgabe?** Das Video ist trotzdem da. Nachholen:
+     `yt_clips.cli transcribe --source <id> [--model small] [--lang en]`.
 
 ## Übergabe an die Pipeline
 
 - Abschluss des Skills, sobald `clip` vollständig ausgeführt wurde.
 - **Kontext zurückgeben:** `source`-id, `start`/`end`, `reason` — die Pipeline
   braucht ihn für Titel/Beschreibung und die Erfassung.
-- **Pausieren ist normal:** `download` (langes Video) und `format`
-  (Vision-Bestätigung) laufen nicht in einem Shot. Später hier fortsetzen.
+- **Pausieren ist normal:** `request_upload`/`await_upload` (der Operator hat
+  den Link) und `format` (Vision-Bestätigung) laufen nicht in einem Shot.
+  Später hier fortsetzen.
 - **Plan-Eintrag:** Der Eintrag existiert schon (`add-plan`). Erst wenn ein
   Highlight gewählt ist, ihn abschließen:
   `longterm_memory.cli generated <id> --title ... --description ... --file memory/videos/<name>.mp4 --len-s <s>`.

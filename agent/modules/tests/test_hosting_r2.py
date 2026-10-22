@@ -180,6 +180,19 @@ class UploadTest(_Base):
         self.assertEqual(url, "https://pub-x.r2.dev/videos/z.mp4")
         self.assertEqual(fake.put[0]["Key"], "videos/z.mp4")
 
+    def test_upload_file_stream_uses_a_handle(self):
+        os.environ.update(ENV)
+        fake = _FakeClient([])
+        with tempfile.TemporaryDirectory() as tmp:
+            f = Path(tmp) / "big.mp4"
+            f.write_bytes(b"1234")
+            with mock.patch.object(r2, "_client", return_value=fake):
+                url = r2.upload_file(f, key="videos/big.mp4", stream=True)
+        self.assertEqual(url, "https://pub-x.r2.dev/videos/big.mp4")
+        body = fake.put[0]["Body"]
+        self.assertTrue(hasattr(body, "read"), "stream must pass a file handle")
+        self.assertEqual(fake.put[0]["ContentType"], "video/mp4")
+
     def test_upload_error_wrapped(self):
         os.environ.update(ENV)
         fake = mock.Mock()

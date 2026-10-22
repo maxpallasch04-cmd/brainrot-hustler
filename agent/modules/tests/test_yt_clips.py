@@ -20,11 +20,13 @@ from editor.probe import ffmpeg_exe  # noqa: E402
 from PIL import Image  # noqa: E402
 
 from yt_clips import crops  # noqa: E402
-from yt_clips import download as dlmod  # noqa: E402
+from yt_clips.urls import youtube_id  # noqa: E402
 from yt_clips import highlights as hl  # noqa: E402
 from yt_clips import motion  # noqa: E402
 from yt_clips import ocr  # noqa: E402
 from yt_clips.cli import _candidate_windows, main as yt_main  # noqa: E402
+from yt_clips import cli as cli_mod  # noqa: E402
+from yt_clips.cli import http_download  # noqa: E402
 from yt_clips.store import Store  # noqa: E402
 from longterm_memory import db as ltm  # noqa: E402
 
@@ -50,12 +52,12 @@ def make_store(path) -> Store:
 
 class YoutubeIdTest(unittest.TestCase):
     def test_ids(self):
-        self.assertEqual(dlmod.youtube_id("https://www.youtube.com/watch?v=dQw4w9WgXcQ"),
+        self.assertEqual(youtube_id("https://www.youtube.com/watch?v=dQw4w9WgXcQ"),
                          "dQw4w9WgXcQ")
-        self.assertEqual(dlmod.youtube_id("https://youtu.be/dQw4w9WgXcQ"), "dQw4w9WgXcQ")
-        self.assertEqual(dlmod.youtube_id("https://www.youtube.com/shorts/abcDEF12345"),
+        self.assertEqual(youtube_id("https://youtu.be/dQw4w9WgXcQ"), "dQw4w9WgXcQ")
+        self.assertEqual(youtube_id("https://www.youtube.com/shorts/abcDEF12345"),
                          "abcDEF12345")
-        self.assertIsNone(dlmod.youtube_id("https://example.com/x"))
+        self.assertIsNone(youtube_id("https://example.com/x"))
 
 
 class StoreTest(unittest.TestCase):
@@ -66,8 +68,8 @@ class StoreTest(unittest.TestCase):
     def tearDown(self):
         self.store.close()
 
-    def test_empty_queue_is_download(self):
-        self.assertEqual(self.store.next_work("sls")["action"], "download")
+    def test_empty_queue_requests_a_upload(self):
+        self.assertEqual(self.store.next_work("sls")["action"], "request_upload")
 
     def test_fresh_source_needs_find(self):
         sid = self.store.add_source("https://youtu.be/abc", ext_id="abc", path="x.mp4",
@@ -104,9 +106,32 @@ class StoreTest(unittest.TestCase):
     def test_exhaust_stops_find(self):
         sid = self.store.add_source("u", ext_id="done", path="x.mp4", recipe="sls")
         self.store.set_source_status(sid, "Exhausted")
-        self.assertEqual(self.store.next_work("sls")["action"], "download")
+        self.assertEqual(self.store.next_work("sls")["action"], "request_upload")
         self.store.set_source_status(sid, "Downloaded")       # reopen
         self.assertEqual(self.store.next_work("sls")["action"], "find")
+
+    def test_awaiting_upload_blocks_new_requests(self):
+        sid = self.store.add_source("u", ext_id="pending", recipe="sls",
+                                    status="AwaitingUpload")
+        nw = self.store.next_work("sls")
+        self.assertEqual(nw["action"], "await_upload")
+        self.assertEqual(nw["source"]["id"], sid)
+        # Kein path -> keine find-Arbeit, solange die Datei fehlt.
+        self.assertEqual(self.store.get_source(sid)["status"], "AwaitingUpload")
+
+    def test_set_source_file_finishes_the_handover(self):
+        sid = self.store.add_source("u", ext_id="hand", recipe="sls",
+                                    status="AwaitingUpload")
+        got = self.store.set_source_file(sid, path="x.mp4", subs_path="x.vtt")
+        self.assertEqual(got["status"], "Downloaded")
+        self.assertEqual(got["path"], "x.mp4")
+        self.assertEqual(self.store.next_work("sls")["action"], "find")
+
+    def test_add_source_defaults_status_from_path(self):
+        np_id = self.store.add_source("u", ext_id="np")
+        self.assertEqual(self.store.get_source(np_id)["status"], "AwaitingUpload")
+        wp_id = self.store.add_source("u", ext_id="wp", path="a.mp4")
+        self.assertEqual(self.store.get_source(wp_id)["status"], "Downloaded")
 
     def test_new_candidates_revive_source(self):
         sid = self.store.add_source("u", ext_id="revive", path="x.mp4", recipe="sls")
@@ -124,7 +149,7 @@ class StoreTest(unittest.TestCase):
         self.store.add_candidates(sid, [{"start": 1.0, "end": 5.0}])
         self.assertEqual(self.store.next_work("sls")["action"], "clip")
         # a different recipe must not see the SLS work
-        self.assertEqual(self.store.next_work("other")["action"], "download")
+        self.assertEqual(self.store.next_work("other")["action"], "request_upload")
 
     def test_next_needs_a_recipe(self):
         with self.assertRaises(ValueError):
@@ -366,152 +391,88 @@ class ScoreOcrTest(unittest.TestCase):
         self.assertEqual(got["first"]["value"], 9.5)
 
 
-class CookieOptsTest(unittest.TestCase):
-    """YouTube bot gate: cookies must reach yt-dlp (no network)."""
-
-    def _clear(self):
-        os.environ.pop("YTDLP_COOKIES_FILE", None)
-        os.environ.pop("YTDLP_COOKIES_FROM_BROWSER", None)
-
-    def test_file_env(self):
-        env = {"YTDLP_COOKIES_FILE": "/tmp/c.txt", "YTDLP_COOKIES_FROM_BROWSER": ""}
-        with mock.patch.dict(os.environ, env, clear=False):
-            self.assertEqual(dlmod.cookie_opts(), {"cookiefile": str(Path("/tmp/c.txt"))})
-
-    def test_from_browser_env(self):
-        with mock.patch.dict(os.environ, {"YTDLP_COOKIES_FROM_BROWSER": "firefox:default"}, clear=False):
-            os.environ.pop("YTDLP_COOKIES_FILE", None)
-            self.assertEqual(dlmod.cookie_opts(), {"cookiesfrombrowser": ("firefox", "default")})
-
-    def test_default_state_dir_file(self):
-        with tempfile.TemporaryDirectory() as d:
-            Path(d, "cookies.txt").write_text("# Netscape HTTP Cookie File\n", encoding="utf-8")
-            with mock.patch.dict(os.environ, {"BRAINROT_STATE_DIR": d}, clear=False):
-                self._clear()
-                self.assertEqual(dlmod.cookie_opts(), {"cookiefile": str(Path(d, "cookies.txt"))})
-
-    def test_empty_when_unconfigured(self):
-        with tempfile.TemporaryDirectory() as d:
-            with mock.patch.dict(os.environ, {"BRAINROT_STATE_DIR": d}, clear=False):
-                self._clear()
-                self.assertEqual(dlmod.cookie_opts(), {})
-
-    def test_bot_check_becomes_actionable(self):
-        err = dlmod._with_hint(Exception("ERROR: Sign in to confirm you're not a bot. Use --cookies"))
-        self.assertIsInstance(err, RuntimeError)
-        self.assertIn("cookies", str(err).lower())
-
-    def test_other_errors_pass_through(self):
-        original = ValueError("nope")
-        self.assertIs(dlmod._with_hint(original), original)
-
-    def test_ytdlp_accepts_the_opts(self):
-        try:
-            import yt_dlp
-        except ImportError:
-            self.skipTest("yt-dlp not installed")
-        with tempfile.TemporaryDirectory() as d:
-            Path(d, "cookies.txt").write_text("# Netscape HTTP Cookie File\n", encoding="utf-8")
-            with mock.patch.dict(os.environ, {"BRAINROT_STATE_DIR": d}, clear=False):
-                self._clear()
-                yt_dlp.YoutubeDL({"quiet": True, **dlmod.cookie_opts()}).close()
-
-
-class NetOptsTest(unittest.TestCase):
-    """IP-block escape hatches (proxy / player client), no network."""
+class HandoverCliTest(unittest.TestCase):
+    """request -> await_upload -> fetch (Operator lädt + hostet). Kein Netz."""
 
     def setUp(self):
-        # Isolate from a real node install; individual tests override this.
-        patcher = mock.patch.object(dlmod.shutil, "which", return_value=None)
-        self.addCleanup(patcher.stop)
-        patcher.start()
+        self.tmp = Path(tempfile.mkdtemp())
+        self.db = self.tmp / "t.db"
+        make_store(self.db).close()
+        self.env = mock.patch.dict(os.environ, {"BRAINROT_CHANNEL": "sls"})
+        self.env.start()
+        self.addCleanup(self.env.stop)
 
-    def _clear(self):
-        os.environ.pop("YTDLP_PROXY", None)
-        os.environ.pop("YTDLP_EXTRACTOR_ARGS", None)
-        os.environ.pop("YTDLP_JS_RUNTIMES", None)
+    def _run(self, argv):
+        import contextlib
+        import io
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            yt_main(["--db", str(self.db), *argv])
+        return json.loads(buf.getvalue())
 
-    def test_proxy_env(self):
-        with mock.patch.dict(os.environ, {"YTDLP_PROXY": "socks5://h:1080"}, clear=False):
-            os.environ.pop("YTDLP_EXTRACTOR_ARGS", None)
-            self.assertEqual(dlmod.net_opts(), {"proxy": "socks5://h:1080"})
-
-    def test_extractor_args_env(self):
-        env = {"YTDLP_EXTRACTOR_ARGS": "youtube:player_client=tv,web_safari"}
-        with mock.patch.dict(os.environ, env, clear=False):
-            os.environ.pop("YTDLP_PROXY", None)
-            self.assertEqual(dlmod.net_opts(), {
-                "extractor_args": {"youtube": {"player_client": ["tv", "web_safari"]}},
-            })
-
-    def test_extractor_args_escaping(self):
-        env = {"YTDLP_EXTRACTOR_ARGS": "youtube:player-client=a\\,b"}
-        with mock.patch.dict(os.environ, env, clear=False):
-            os.environ.pop("YTDLP_PROXY", None)
-            self.assertEqual(dlmod.net_opts(), {
-                "extractor_args": {"youtube": {"player_client": ["a,b"]}},
-            })
-
-    def test_empty_when_unconfigured(self):
-        with mock.patch.dict(os.environ, {}, clear=False):
-            self._clear()
-            self.assertEqual(dlmod.net_opts(), {})
-
-    def test_bad_extractor_args_ignored(self):
-        with mock.patch.dict(os.environ, {"YTDLP_EXTRACTOR_ARGS": "nonsense"}, clear=False):
-            os.environ.pop("YTDLP_PROXY", None)
-            self.assertEqual(dlmod.net_opts(), {})
-
-    def test_js_runtimes_env(self):
-        with mock.patch.dict(os.environ, {"YTDLP_JS_RUNTIMES": "node"}, clear=False):
-            self.assertEqual(dlmod.net_opts(), {"js_runtimes": {"node": {"path": None}}})
-
-    def test_js_runtime_auto_detects_node(self):
-        with mock.patch.object(dlmod.shutil, "which", return_value="/usr/bin/node"):
-            self._clear()
-            self.assertEqual(dlmod.net_opts(), {"js_runtimes": {"node": {"path": None}}})
-
-    def test_js_runtimes_list_with_path(self):
-        env = {"YTDLP_JS_RUNTIMES": "node:/usr/bin/node, deno"}
-        with mock.patch.dict(os.environ, env, clear=False):
-            self.assertEqual(dlmod.net_opts(), {
-                "js_runtimes": {
-                    "node": {"path": "/usr/bin/node"},
-                    "deno": {"path": None},
-                },
-            })
-
-    def test_ytdlp_accepts_net_opts(self):
+    def test_request_creates_pending_source(self):
+        got = self._run(["request", "--url", "https://youtu.be/abc123",
+                         "--recipe", "sls"])
+        self.assertEqual(got["action"], "request_upload")
+        self.assertEqual(got["source_id"], 1)
+        self.assertIn("abc123", got["url"])
+        self.assertIn("Bucket", got["operator_message"])
+        store = Store(self.db, channel="sls")
         try:
-            import yt_dlp
-        except ImportError:
-            self.skipTest("yt-dlp not installed")
-        env = {"YTDLP_PROXY": "http://127.0.0.1:9",
-               "YTDLP_EXTRACTOR_ARGS": "youtube:player_client=tv",
-               "YTDLP_JS_RUNTIMES": "node"}
-        with mock.patch.dict(os.environ, env, clear=False):
-            yt_dlp.YoutubeDL({"quiet": True, **dlmod.net_opts()}).close()
+            self.assertEqual(store.get_source(1)["status"], "AwaitingUpload")
+            self.assertEqual(store.next_work("sls")["action"], "await_upload")
+        finally:
+            store.close()
 
+    def test_fetch_stores_the_file_and_opens_find(self):
+        self._run(["request", "--url", "https://youtu.be/abc123", "--recipe", "sls"])
+        out = self.tmp / "clips"
 
-class DownloadFormatTest(unittest.TestCase):
-    def test_default_quality_is_1080(self):
-        self.assertEqual(dlmod.DEFAULT_QUALITY, 1080)
-        self.assertIn("height<=1080", dlmod.format_selector())
+        def fake_download(url, dest=None, **kwargs):
+            path = Path(dest)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(b"video")
+            return {"path": str(path), "bytes": path.stat().st_size,
+                    "filename": path.name, "url": url}
 
-    def test_progressive_selector(self):
-        self.assertEqual(dlmod.progressive_selector(1080), "b[height<=1080]/b")
+        def fake_transcribe(src, dest, **kwargs):
+            Path(dest).write_text("WEBVTT\n", encoding="utf-8")
+            return {"out": str(dest), "cues": 1, "words": 2, "model": "base",
+                    "language": "en", "duration_s": 10.0}
 
-    def test_gated_detection(self):
-        self.assertTrue(dlmod._is_gated(Exception("HTTP Error 403: Forbidden")))
-        self.assertTrue(dlmod._is_gated(
-            Exception("Requested format is not available")))
-        self.assertFalse(dlmod._is_gated(Exception("Sign in to confirm")))
+        with mock.patch.object(cli_mod, "http_download", side_effect=fake_download), \
+                mock.patch("editor.subtitles.transcribe", side_effect=fake_transcribe):
+            got = self._run(["fetch", "--source", "1",
+                             "--url", "https://bucket.example/abc123.mp4",
+                             "--out-dir", str(out)])
+        self.assertEqual(got["status"], "Downloaded")
+        self.assertEqual(Path(got["file"]["path"]), out / "abc123.mp4")
+        self.assertEqual(Path(got["subs"]), out / "abc123.vtt")
+        self.assertEqual(got["transcript"]["cues"], 1)
+        self.assertTrue((out / "abc123.mp4").is_file())
+        store = Store(self.db, channel="sls")
+        try:
+            self.assertEqual(store.get_source(1)["subs_path"], str(out / "abc123.vtt"))
+            self.assertEqual(store.next_work("sls")["action"], "find")
+        finally:
+            store.close()
 
-    def test_format_selector(self):
-        self.assertEqual(dlmod.format_selector(720),
-                         "bv*[height<=720]+ba/b[height<=720]/b")
-        self.assertEqual(dlmod.format_selector(None), "mp4/best")
-        self.assertEqual(dlmod.format_selector(0), "mp4/best")
+    def test_fetch_can_skip_the_transcript(self):
+        self._run(["request", "--url", "https://youtu.be/abc123", "--recipe", "sls"])
+        out = self.tmp / "clips"
+
+        def fake_download(url, dest=None, **kwargs):
+            path = Path(dest)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(b"video")
+            return {"path": str(path), "bytes": 5, "filename": path.name, "url": url}
+
+        with mock.patch.object(cli_mod, "http_download", side_effect=fake_download):
+            got = self._run(["fetch", "--source", "1",
+                             "--url", "https://bucket.example/abc123.mp4",
+                             "--out-dir", str(out), "--no-transcribe"])
+        self.assertIsNone(got["subs"])
+        self.assertEqual(got["status"], "Downloaded")
 
 
 if __name__ == "__main__":

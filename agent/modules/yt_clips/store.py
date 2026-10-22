@@ -6,8 +6,9 @@ Every store belongs to one channel (``channel_id`` on the source).
 
 State machine
 -------------
-``yt_source.status``:  Downloaded (work: find candidates)
-                       Exhausted  (nothing left to clip)
+``yt_source.status``:  AwaitingUpload (link beim Operator, Datei fehlt noch)
+                       Downloaded     (Datei da; work: find candidates)
+                       Exhausted      (nothing left to clip)
 ``yt_clip.status``:    Candidate  -> Used | Skipped
 
 The layout does not live here. It is an ``editor`` recipe file; this store only
@@ -59,7 +60,7 @@ CREATE INDEX IF NOT EXISTS idx_yt_clip_status ON yt_clip (status);
 CREATE INDEX IF NOT EXISTS idx_yt_clip_source ON yt_clip (source_id);
 """
 
-SOURCE_STATUSES = ("Downloaded", "Exhausted")
+SOURCE_STATUSES = ("AwaitingUpload", "Downloaded", "Exhausted")
 CLIP_STATUSES = ("Candidate", "Used", "Skipped")
 
 
@@ -121,8 +122,17 @@ class Store:
     # ---- sources --------------------------------------------------------
 
     def add_source(self, url: str, *, ext_id=None, path=None, title="",
-                   duration_s=None, recipe="", chapters=None, subs_path=None) -> int:
-        """Insert (or update by ext_id) a source and return its id."""
+                   duration_s=None, recipe="", chapters=None, subs_path=None,
+                   status=None) -> int:
+        """Insert (or update by ext_id) a source and return its id.
+
+        ``status`` default: ``Downloaded`` mit Datei, sonst ``AwaitingUpload``
+        (das Video liegt noch nicht lokal).
+        """
+        if status is None:
+            status = "Downloaded" if path else "AwaitingUpload"
+        if status not in SOURCE_STATUSES:
+            raise ValueError(f"status must be one of {SOURCE_STATUSES}")
         chapters_json = json.dumps(chapters, ensure_ascii=False) if chapters else None
         if ext_id:
             row = self.conn.execute(
@@ -135,17 +145,19 @@ class Store:
                     "duration_s = COALESCE(?, duration_s), "
                     "recipe = COALESCE(NULLIF(?, ''), recipe), "
                     "chapters_json = COALESCE(?, chapters_json), "
-                    "subs_path = COALESCE(?, subs_path) WHERE id = ?",
+                    "subs_path = COALESCE(?, subs_path), "
+                    "status = CASE WHEN ? = 'Downloaded' AND ? IS NOT NULL "
+                    "THEN 'Downloaded' ELSE status END WHERE id = ?",
                     (url, path, title, duration_s, recipe, chapters_json, subs_path,
-                     row["id"]))
+                     status, path, row["id"]))
                 self.conn.commit()
                 return int(row["id"])
         cur = self.conn.execute(
             "INSERT INTO yt_source (channel_id, ext_id, url, path, title, duration_s, "
-            "recipe, chapters_json, subs_path, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "recipe, chapters_json, subs_path, created_at, status) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (self.channel, str(ext_id) if ext_id else None, url, path, title,
-             duration_s, recipe, chapters_json, subs_path, _now()))
+             duration_s, recipe, chapters_json, subs_path, _now(), status))
         self.conn.commit()
         return int(cur.lastrowid)
 
@@ -184,6 +196,22 @@ class Store:
         if cur.rowcount == 0:
             raise KeyError(f"source {source_id} not found in channel {self.channel!r}")
         self.conn.commit()
+
+    def set_source_file(self, source_id: int, *, path: str,
+                        subs_path: str | None = None,
+                        title: str | None = None) -> dict:
+        """Die vom Operator gelieferte Datei eintragen -> Status ``Downloaded``."""
+        if not str(path or "").strip():
+            raise ValueError("path must not be empty")
+        if self.get_source(source_id) is None:
+            raise KeyError(f"source {source_id} not found in channel {self.channel!r}")
+        self.conn.execute(
+            "UPDATE yt_source SET path = ?, subs_path = COALESCE(?, subs_path), "
+            "title = COALESCE(NULLIF(?, ''), title), status = 'Downloaded' "
+            "WHERE id = ? AND channel_id = ?",
+            (str(path), subs_path, title or "", int(source_id), self.channel))
+        self.conn.commit()
+        return dict(self.get_source(source_id))
 
     def set_recipe(self, source_id: int, recipe: str) -> dict:
         """Tag a downloaded video with the recipe that picked it."""
@@ -338,7 +366,7 @@ class Store:
     # ---- work queue -----------------------------------------------------
 
     def next_work(self, recipe: str) -> dict:
-        """What to do next **for one recipe**: clip | find | download.
+        """What to do next **for one recipe**: clip | find | await_upload | request_upload.
 
         The recipe is the queue key: sources of other recipes are invisible here,
         so switching from one art to another does not keep surfacing old work.
@@ -357,7 +385,7 @@ class Store:
                     "source": self.get_source(row["source_id"])}
 
         row = self.conn.execute(
-            "SELECT * FROM yt_source s WHERE s.status != 'Exhausted' AND s.recipe = ? "
+            "SELECT * FROM yt_source s WHERE s.status = 'Downloaded' AND s.recipe = ? "
             "AND s.channel_id = ? "
             "AND NOT EXISTS (SELECT 1 FROM yt_clip c "
             "                WHERE c.source_id = s.id AND c.status = 'Candidate') "
@@ -365,4 +393,14 @@ class Store:
         if row:
             return {"action": "find", "recipe": name, "source": self.get_source(row["id"])}
 
-        return {"action": "download", "recipe": name}
+        # Ein Video, das beim Operator liegt, blockiert den nächsten Download:
+        # erst holen, dann weiter. Sonst stapeln sich offene Anforderungen.
+        row = self.conn.execute(
+            "SELECT * FROM yt_source s WHERE s.status = 'AwaitingUpload' "
+            "AND s.recipe = ? AND s.channel_id = ? ORDER BY s.id LIMIT 1",
+            (name, self.channel)).fetchone()
+        if row:
+            return {"action": "await_upload", "recipe": name,
+                    "source": self.get_source(row["id"])}
+
+        return {"action": "request_upload", "recipe": name}

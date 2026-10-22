@@ -7,12 +7,9 @@
 
 requests>=2.31           # hosting (Download/HTTP)
 boto3>=1.34              # hosting (Cloudflare R2, S3-kompatibel)
-# `[default]` ist Pflicht: bringt yt-dlp-ejs (Challenge-Solver-Skripte) mit. Ohne
-# die scheitert YouTube mit "n challenge solving failed" (auch mit Node als Runtime).
-yt-dlp[default]>=2025.5.22  # yt_clips (PO-Token-Plugin braucht >= 2025.05.22)
-# PO-Token-Plugin für yt-dlp. Ohne Provider-Server auf 127.0.0.1:4416 liefert
-# YouTube bei DASH-Formaten (1080p) HTTP 403 - Server-Setup siehe Projekt-README §4.
-bgutil-ytdlp-pot-provider>=2.0.2
+# Nicht für den Agenten: nur das Operator-Werkzeug fetch-upload.py braucht
+# yt-dlp auf dem Rechner, auf dem geladen wird (pip install "yt-dlp[default]").
+faster-whisper>=1.0      # editor/yt_clips (lokales Transkript, CPU int8)
 numpy>=1.26              # yt_clips (Analyse: motion/ocr/highlights)
 Pillow>=10               # yt_clips (Crops/Thumbnails)
 # ffmpeg kommt vom System: `sudo apt install ffmpeg` (enthält libass für

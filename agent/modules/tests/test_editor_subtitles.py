@@ -8,6 +8,8 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -188,6 +190,89 @@ class BurnTest(unittest.TestCase):
         bright = sum(1 for px in Image.open(frame).convert("RGB").getdata()
                      if min(px) > 180)
         self.assertGreater(bright, 20, "kein Text im gebrannten Frame")
+
+
+class VttTest(unittest.TestCase):
+    def test_to_vtt_keeps_word_tags(self):
+        cues = [{"start": 1.0, "end": 2.5, "text": "hello world",
+                 "raw": "<00:00:01.000>hello <00:00:01.800>world"}]
+        text = subs.to_vtt(cues)
+        self.assertTrue(text.startswith("WEBVTT"))
+        self.assertIn("<00:00:01.000>hello", text)
+        parsed = subs.parse(text)
+        self.assertEqual(parsed[0]["text"], "hello world")
+        words = subs.words(subs.dedupe(parsed))
+        self.assertEqual([w["word"] for w in words], ["hello", "world"])
+        self.assertAlmostEqual(words[1]["start"], 1.8, places=3)
+
+    def test_write_cues_picks_the_format(self):
+        tmp = Path(tempfile.mkdtemp())
+        cues = [{"start": 0.0, "end": 1.0, "text": "hi"}]
+        vtt = Path(subs.write_cues(cues, tmp / "a.vtt"))
+        self.assertTrue(vtt.read_text(encoding="utf-8").startswith("WEBVTT"))
+        srt = Path(subs.write_cues(cues, tmp / "a.srt"))
+        self.assertIn("00:00:00,000 --> 00:00:01,000",
+                      srt.read_text(encoding="utf-8"))
+
+    def test_burn_strips_word_tags(self):
+        tmp = Path(tempfile.mkdtemp())
+        video = tmp / "v.mp4"
+        video.write_bytes(b"x")
+        vtt = tmp / "v.vtt"
+        vtt.write_text(WORD_VTT, encoding="utf-8")
+        seen = {}
+
+        def fake_run(cmd, cwd):
+            seen["srt"] = Path(cwd, "subs.srt").read_text(encoding="utf-8")
+
+        with mock.patch.object(subs, "_run_ffmpeg", side_effect=fake_run):
+            subs.burn(video, vtt, tmp / "out.mp4", ffmpeg="ffmpeg")
+        self.assertIn("hello", seen["srt"])
+        self.assertNotIn("<00:", seen["srt"])
+
+
+class TranscribeTest(unittest.TestCase):
+    def _fake(self, segments, language="en"):
+        class FakeModel:
+            def __init__(self, name, **kwargs):
+                self.name = name
+                self.kwargs = kwargs
+
+            def transcribe(self, path, **kwargs):
+                info = SimpleNamespace(language=language,
+                                       language_probability=0.98,
+                                       duration=2.0)
+                return iter(segments), info
+
+        mod = SimpleNamespace(WhisperModel=FakeModel)
+        return mod
+
+    def test_transcribe_writes_vtt_with_word_times(self):
+        tmp = Path(tempfile.mkdtemp())
+        src = tmp / "v.mp4"
+        src.write_bytes(b"x")
+        seg = SimpleNamespace(
+            start=0.0, end=2.0, text=" Hello world.",
+            words=[SimpleNamespace(word=" Hello", start=0.0, end=0.5),
+                   SimpleNamespace(word=" world.", start=0.5, end=2.0)])
+        with mock.patch.dict(sys.modules, {"faster_whisper": self._fake([seg])}):
+            got = subs.transcribe(str(src), str(tmp / "v.vtt"), model="tiny")
+        self.assertEqual(got["cues"], 1)
+        self.assertEqual(got["words"], 2)
+        self.assertEqual(got["language"], "en")
+        parsed = subs.load(got["out"])
+        self.assertEqual(parsed[0]["text"], "Hello world.")
+        words = subs.words(parsed)
+        self.assertEqual([w["word"] for w in words], ["Hello", "world."])
+        self.assertAlmostEqual(words[1]["start"], 0.5, places=3)
+
+    def test_empty_transcript_is_an_error(self):
+        tmp = Path(tempfile.mkdtemp())
+        src = tmp / "v.mp4"
+        src.write_bytes(b"x")
+        with mock.patch.dict(sys.modules, {"faster_whisper": self._fake([])}):
+            with self.assertRaises(subs.SubtitleError):
+                subs.transcribe(str(src), str(tmp / "v.vtt"))
 
 
 if __name__ == "__main__":

@@ -176,12 +176,30 @@ def upload_bytes(content: bytes, filename: str, *, key: str | None = None,
     return public_url(key, cfg["public_base_url"])
 
 
-def upload_file(path, *, key: str | None = None, timeout: int = 180) -> str:
-    """Upload a file from disk; returns the public URL. Does not prune."""
+def upload_file(path, *, key: str | None = None, timeout: int = 180,
+                stream: bool = False) -> str:
+    """Upload a file from disk; returns the public URL. Does not prune.
+
+    ``stream=True`` liest die Datei blockweise über ein Datei-Handle, statt sie
+    komplett in den RAM zu laden — der richtige Weg für mehrere GB Video.
+    """
     p = Path(path)
     if not p.is_file():
         raise R2Error(f"not a file: {p}")
-    return upload_bytes(p.read_bytes(), p.name, key=key, timeout=timeout)
+    if not stream:
+        return upload_bytes(p.read_bytes(), p.name, key=key, timeout=timeout)
+
+    cfg = config()
+    key = key or object_key(p.name, prefix=cfg["prefix"])
+    ctype = mimetypes.guess_type(str(p))[0] or "application/octet-stream"
+    try:
+        with open(p, "rb") as handle:
+            _client(cfg, timeout).put_object(
+                Bucket=cfg["bucket"], Key=key, Body=handle,
+                ContentType=ctype, CacheControl="public, max-age=31536000")
+    except Exception as exc:  # botocore raises many error types
+        raise R2Error(f"R2 upload failed: {exc}") from exc
+    return public_url(key, cfg["public_base_url"])
 
 
 def upload(source, *, filename: str | None = None, timeout: int = 180) -> str:

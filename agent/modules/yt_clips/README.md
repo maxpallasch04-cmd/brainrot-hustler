@@ -6,13 +6,16 @@ Layout - es liefert Fenster, Boxen und Messwerte; das Video schreibt `editor`.
 
 ## Zustand
 
-- `yt_source.status`: `Downloaded` (offen, suchen/clippen) oder `Exhausted`
-  (bewusst abgeschlossen, kein `find` mehr).
+- `yt_source.status`: `AwaitingUpload` (Link beim Operator, Datei fehlt),
+  `Downloaded` (Datei da, suchen/clippen) oder `Exhausted` (bewusst
+  abgeschlossen, kein `find` mehr).
 - `yt_clip.status`: `Candidate` → `Used` / `Skipped`.
 - Ein verbrauchter oder geskippter Clip beendet die Quelle **nicht**. Erst
   `exhaust` schließt sie; neue `candidates-add` öffnen sie wieder.
 - `next` bietet `find` so lange an, wie die Quelle offen ist und kein
   `Candidate` wartet - ein Video wird über mehrere Läufe abgearbeitet.
+- `await_upload` blockiert neue `request_upload`s: erst die offene Übergabe
+  abschließen, dann das nächste Video anfordern.
 
 ## Rezept als Queue-Schlüssel
 
@@ -23,8 +26,10 @@ mischt sich kein fremdes Material in eine andere Art.
 ## CLI
 
 ```
-bin/channel <id> yt_clips.cli next --recipe <name>              # clip | find | download
-bin/channel <id> yt_clips.cli download --url <url> --recipe <name> [--out-dir <dir>] [--quality 1080] [--subs-lang en]
+bin/channel <id> yt_clips.cli next --recipe <name>              # clip | find | await_upload | request_upload
+bin/channel <id> yt_clips.cli request --url <url> --recipe <name> [--note <text>]
+bin/channel <id> yt_clips.cli fetch --source <id> --url <bucket-url> [--no-transcribe]
+bin/channel <id> yt_clips.cli transcribe --source <id> [--model base] [--lang en]
 bin/channel <id> yt_clips.cli recipe-set --source <id> --recipe <name>
 
 bin/channel <id> yt_clips.cli highlights --source <id> --top 10 [--add]
@@ -50,13 +55,15 @@ bin/channel <id> yt_clips.cli list [--recipe <name>]
 Alle Befehle geben JSON aus. Der Prozess (welche Analyse wann) steht in
 `skills/ytclip`.
 
-**Qualität:** `download` lädt standardmäßig **1080p** - Video und Audio getrennt,
-per ffmpeg zu einer MP4 gemerged. Scheitert der DASH-Download mit **403**
-(fehlender PO-Token), wird einmal auf eine fertige Datei zurückgefallen; das
-JSON trägt dann `quality_fallback: true`. Das selten ändern: 720 reicht nicht (die
-9:16-Action-Box wird sonst ~2,7× hochskaliert), 1440 lohnt nur, wenn Score oder
-Name sehr klein im Bild sind. Ohne Merge wäre die beste *fertige* MP4 auf
-YouTube oft nur 360p.
+**Download = Übergabe.** Der Agent lädt nicht mehr selbst: `request` legt die
+Quelle als `AwaitingUpload` an und liefert `operator_message` (Link + was zu tun
+ist). Der Operator lädt im Browser (1080p, mp4), legt die Datei in den R2-Bucket
+und schickt den Link zurück; `fetch` holt sie von dort nach
+`memory/<channel>/clips/<video-id>.<ext>`. Grund: YouTube blockt den
+Rechenzentrums-Host, der Operator nicht.
+
+**Qualität:** 1080p mp4 ist die Vorgabe — die 9:16-Action-Box wird sonst zu
+stark hochskaliert. Der Operator liefert die Datei so.
 
 ## Boxen
 
@@ -123,10 +130,24 @@ werden beim Rendern hart aneinandergehängt; Kanten vorher mit
 
 ## Untertitel
 
-`download --subs-lang en` holt das Transcript mit (`subs_path` am Source).
+`fetch` erzeugt das Transkript **lokal** mit `faster-whisper` (Default `base`,
+CPU `int8`) und legt `<video-id>.vtt` neben das Video (`subs_path` am Source).
+Die Wortzeiten stehen als VTT-`<ts>`-Tags in den Cues — `subtitles words/snap`
+funktioniert damit wie bei YouTube-Auto-Captions. `subtitles burn` parst die
+Datei und schreibt intern sauberes SRT, die Tags landen also nicht im Bild.
+
+Nachholen/neu erzeugen (z. B. nach `--no-transcribe` oder Timeout):
+
+```
+bin/channel <id> yt_clips.cli transcribe --source <id> [--model small] [--lang en]
+```
+
+Ohne Transkript arbeitet `find` nur über `highlights`, OCR und `motion`.
 Fenster schneiden und Einbrennen macht `editor` (`subtitles`).
 
 ## Zugänge
 
-Cookies, Proxy und Extraktor-Optionen für YouTube stehen in der Projekt-README
-(Abschnitt „Zugänge"). Ohne Cookies scheitert der Download auf Rechenzentrums-IPs.
+Keine. Der Host lädt weder von YouTube noch braucht er Cookies: `request` gibt
+den Link an den Operator, `fetch` holt die Datei aus dem eigenen Bucket. Das
+Transkript entsteht lokal; das Whisper-Modell lädt einmalig in den
+Hugging-Face-Cache (`WHISPER_MODEL_DIR` verschiebt ihn).
