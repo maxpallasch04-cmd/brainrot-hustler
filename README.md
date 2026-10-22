@@ -295,21 +295,27 @@ nur `yt_clips ocr` fehlt (Fallback: `--engine rapidocr`, wenn
 ## 6. Setup (Linux)
 
 ```bash
-# 1) Repo ins OpenClaw-Verzeichnis klonen (siehe Verzeichniswechsel)
+# 1) System-Pakete prüfen
+ffmpeg -version
+tesseract --version
+#    Fehlt eines davon ("command not found"), dann:
+#    sudo apt install -y ffmpeg tesseract-ocr
+
+# 2) Repo ins OpenClaw-Verzeichnis klonen (siehe Verzeichniswechsel)
 git clone <repo-url> ~/.openclaw/workspace-brainrothustler
 cd ~/.openclaw/workspace-brainrothustler
 
-# 2) Workspace-Dateien an ihren Platz
+# 3) Workspace-Dateien an ihren Platz
 cp -a agent/. .
 rm -rf agent
-chmod +x bin/cli            # Wrapper muss ausführbar sein
+chmod +x bin/cli bin/channel    # beide Wrapper müssen ausführbar sein
 
-# 3) venv anlegen + Modul-Abhängigkeiten (VPS)
+# 4) venv anlegen + Modul-Abhängigkeiten (VPS)
 python3 -m venv .venv
 .venv/bin/pip install --upgrade pip
 .venv/bin/pip install -r modules/requirements.txt
 
-# 4) Berechtigungen schreiben (setup/ liegt noch im Verzeichnis)
+# 5) Berechtigungen schreiben (setup/ liegt noch im Verzeichnis)
 openclaw config patch --file setup/agent-config.json
 
 #    ACHTUNG: `approvals set` ERSETZT das gesamte Dokument (host-weit, alle
@@ -322,15 +328,15 @@ openclaw approvals set --gateway --file /tmp/approvals.merged.json
 #    (ohne jq: /tmp/approvals.current.json editieren und den Block
 #     agents.brainrothustler aus setup/exec-approvals.json von Hand einsetzen)
 
-# 5) Prüfen und anwenden
+# 6) Prüfen und anwenden
 openclaw config get agents.entries.brainrothustler.tools
 openclaw exec-policy show --agent brainrothustler
 openclaw approvals get --gateway
-#    Allowlist muss den Wrapper enthalten (~/.openclaw/workspace-brainrothustler/bin/cli)
+#    Allowlist muss BEIDE Wrapper enthalten (bin/cli und bin/channel)
 
-# 6) Aufräumen: Repo-Rest weg, Workspace = nur die Agent-Dateien
+# 7) Aufräumen: Repo-Rest weg, Workspace = nur die Agent-Dateien
 #    (.venv/ bleibt stehen!)
-rm -rf setup .git modules/requirements.txt README.md modules/requirements.txt
+rm -rf setup .git modules/requirements.txt README.md modules/requirements.txt modules/tests
 
 openclaw gateway restart
 ```
